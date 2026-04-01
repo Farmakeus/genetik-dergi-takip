@@ -1,118 +1,104 @@
 import React, { useState, useEffect, useCallback } from "react";
 
 const journals = [
-  {
-    id: 1, name: "American Journal of Human Genetics", abbr: "AJHG", if2024: 8.1,
-    frequency: "Aylık", focus: "İnsan genetiği, genomik, hesaplamalı biyoloji",
-    url: "https://www.cell.com/ajhg/home", tags: ["temel", "genomik", "hesaplamalı"],
-    tier: "S", color: "#1B4965", publisher: "Cell Press / ASHG",
-    note: "ASHG'nin resmi dergisi. Popülasyon genetiğinden Mendelian hastalıklara kadar geniş kapsam."
-  },
-  {
-    id: 2, name: "Nature Genetics", abbr: "Nat Genet", if2024: 31.7,
-    frequency: "Aylık", focus: "Genetik ve genomik — temel ve translasyonel",
-    url: "https://www.nature.com/ng/", tags: ["temel", "genomik", "translasyonel"],
-    tier: "S", color: "#C1121F", publisher: "Nature Portfolio",
-    note: "En yüksek IF'li genetik dergisi. GWAS, fonksiyonel genomik ve yeni gen keşifleri."
-  },
-  {
-    id: 3, name: "Genetics in Medicine", abbr: "GIM", if2024: 6.6,
-    frequency: "Aylık", focus: "Klinik genetik, genetik test, genetik danışmanlık",
-    url: "https://www.gimjournal.org/", tags: ["klinik", "test", "rehber"],
-    tier: "A", color: "#2D6A4F", publisher: "ACMG / Elsevier",
-    note: "ACMG'nin resmi dergisi. Klinik varyant yorumlama rehberleri burada yayımlanır."
-  },
-  {
-    id: 4, name: "European Journal of Human Genetics", abbr: "EJHG", if2024: 3.7,
-    frequency: "Aylık", focus: "Klinik genetik, sitogenetik, moleküler genetik",
-    url: "https://www.nature.com/ejhg/", tags: ["klinik", "moleküler", "sitogenetik"],
-    tier: "A", color: "#003566", publisher: "ESHG / Nature Portfolio",
-    note: "Avrupa perspektifli klinik genetik. Türk genetikçilerin sık yayın yaptığı dergi."
-  },
-  {
-    id: 5, name: "American Journal of Medical Genetics Part A", abbr: "AJMG-A", if2024: 2.0,
-    frequency: "Aylık", focus: "Klinik genetik, dismorfik sendromlar, vaka raporları",
-    url: "https://onlinelibrary.wiley.com/journal/15524833", tags: ["klinik", "dismorfik", "vaka"],
-    tier: "A", color: "#6A040F", publisher: "Wiley",
-    note: "Dismorfik sendrom vaka raporları için ana dergi. Rezidanlar için ideal ilk yayın hedefi."
-  },
-  {
-    id: 6, name: "Human Mutation / Human Genetics", abbr: "Hum Genet", if2024: 3.8,
-    frequency: "Aylık", focus: "Mutasyon analizi, varyant fonksiyonel çalışmaları",
-    url: "https://link.springer.com/journal/439", tags: ["moleküler", "varyant", "fonksiyonel"],
-    tier: "A", color: "#7B2D8E", publisher: "Springer",
-    note: "Varyant-fonksiyon ilişkisi ve in silico analiz çalışmaları için önemli."
-  },
-  {
-    id: 7, name: "Prenatal Diagnosis", abbr: "Prenat Diagn", if2024: 2.3,
-    frequency: "Aylık", focus: "Prenatal genetik tanı, NIPT, fetal tıp",
-    url: "https://onlinelibrary.wiley.com/journal/10970223", tags: ["prenatal", "klinik", "test"],
-    tier: "B", color: "#E76F51", publisher: "Wiley",
-    note: "NIPT, CVS/amniyosentez sonuçları ve prenatal array CGH çalışmaları."
-  },
-  {
-    id: 9, name: "Clinical Genetics", abbr: "Clin Genet", if2024: 3.2,
-    frequency: "Aylık", focus: "Klinik genetik, moleküler tanı, danışmanlık",
-    url: "https://onlinelibrary.wiley.com/journal/13990004", tags: ["klinik", "moleküler", "test"],
-    tier: "A", color: "#264653", publisher: "Wiley",
-    note: "Kısa vaka raporları (Letter) formatı rezidanlar için hızlı yayın imkanı sunar."
-  },
-  {
-    id: 10, name: "Genome Medicine", abbr: "Genome Med", if2024: 10.4,
-    frequency: "Sürekli", focus: "Klinik genomik, WES/WGS, hassas tıp",
-    url: "https://genomemedicine.biomedcentral.com/", tags: ["genomik", "translasyonel", "hesaplamalı"],
-    tier: "S", color: "#0077B6", publisher: "BMC / Springer Nature",
-    note: "WES/WGS klinik çalışmaları ve biyoinformatik pipeline makaleleri. Open access."
-  },
-  {
-    id: 11, name: "Orphanet Journal of Rare Diseases", abbr: "OJRD", if2024: 3.4,
-    frequency: "Sürekli", focus: "Nadir hastalıklar, epidemiyoloji, tanı yolculuğu",
-    url: "https://ojrd.biomedcentral.com/", tags: ["klinik", "nadir", "translasyonel"],
-    tier: "B", color: "#588157", publisher: "BMC / Springer Nature",
-    note: "Nadir hastalık kohortları ve tanı gecikme süreleri analizleri. Open access."
-  },
-  {
-    id: 12, name: "Briefings in Bioinformatics", abbr: "Brief Bioinform", if2024: 6.8,
-    frequency: "2 ayda bir", focus: "Biyoinformatik pipeline'lar, araç geliştirme, veri analiz yöntemleri",
-    url: "https://academic.oup.com/bib", tags: ["biyoinformatik", "hesaplamalı", "pipeline"],
-    tier: "S", color: "#E63946", publisher: "Oxford University Press",
-    note: "NGS pipeline karşılaştırma ve review makaleleri için en prestijli adres."
-  },
-  {
-    id: 13, name: "Human Genomics", abbr: "Hum Genomics", if2024: 3.8,
-    frequency: "Sürekli", focus: "Klinik biyoinformatik, WES/WGS analiz, varyant yorumlama",
-    url: "https://humgenomics.biomedcentral.com/", tags: ["biyoinformatik", "genomik", "varyant", "klinik"],
-    tier: "A", color: "#457B9D", publisher: "BMC / Springer Nature",
-    note: "WES/WGS klinik biyoinformatik çalışmaları ve varyant filtreleme stratejileri. Open access."
-  },
-  {
-    id: 14, name: "Bioinformatics", abbr: "Bioinformatics", if2024: 4.4,
-    frequency: "2 haftada bir", focus: "Algoritma geliştirme, varyant çağırma, yazılım araçları",
-    url: "https://academic.oup.com/bioinformatics", tags: ["biyoinformatik", "hesaplamalı", "pipeline", "varyant"],
-    tier: "A", color: "#2A9D8F", publisher: "Oxford University Press",
-    note: "GATK, ACMG otomasyon araçları, varyant sınıflandırma algoritmaları burada yayımlanır."
-  }
+  // === Q1 — IF > 6 ===
+  { id: 1, name: "Nature Genetics", abbr: "Nat Genet", if2024: 31.7, quartile: "Q1", frequency: "Aylık", focus: "Genetik ve genomik — temel ve translasyonel", url: "https://www.nature.com/ng/", field: "Genomik", tags: ["temel", "genomik", "translasyonel"], color: "#C1121F", publisher: "Nature Portfolio", note: "En yüksek IF'li genetik dergisi. GWAS, fonksiyonel genomik ve yeni gen keşifleri." },
+  { id: 2, name: "Nature Reviews Genetics", abbr: "Nat Rev Genet", if2024: 39.1, quartile: "Q1", frequency: "Aylık", focus: "Genetik ve genomik alanında kapsamlı derleme makaleleri", url: "https://www.nature.com/nrg/", field: "Genomik", tags: ["temel", "genomik", "derleme"], color: "#9B1B30", publisher: "Nature Portfolio", note: "Alanın en prestijli review dergisi. Yeni kavram ve teknolojilerin kapsamlı değerlendirmesi." },
+  { id: 3, name: "Genome Research", abbr: "Genome Res", if2024: 6.2, quartile: "Q1", frequency: "Aylık", focus: "Genom analizi, fonksiyonel genomik, hesaplamalı biyoloji", url: "https://genome.cshlp.org/", field: "Genomik", tags: ["temel", "genomik", "hesaplamalı"], color: "#5B2C6F", publisher: "Cold Spring Harbor Laboratory Press", note: "Genom düzeyinde analizler, yeni sekanslama teknikleri ve büyük ölçekli veri çalışmaları." },
+  { id: 4, name: "Genome Medicine", abbr: "Genome Med", if2024: 10.4, quartile: "Q1", frequency: "Sürekli", focus: "Klinik genomik, WES/WGS, hassas tıp", url: "https://genomemedicine.biomedcentral.com/", field: "Klinik Genomik", tags: ["genomik", "translasyonel", "hesaplamalı"], color: "#0077B6", publisher: "BMC / Springer Nature", note: "WES/WGS klinik çalışmaları ve biyoinformatik pipeline makaleleri. Open access." },
+  { id: 5, name: "Genome Biology", abbr: "Genome Biol", if2024: 10.1, quartile: "Q1", frequency: "Sürekli", focus: "Genomik, epigenomik, transkriptomik, araç geliştirme", url: "https://genomebiology.biomedcentral.com/", field: "Genomik", tags: ["genomik", "hesaplamalı", "pipeline"], color: "#1A5276", publisher: "BMC / Springer Nature", note: "Yeni biyoinformatik araçlar ve büyük ölçekli -omik çalışmaları. Open access." },
+  { id: 6, name: "American Journal of Human Genetics", abbr: "AJHG", if2024: 8.1, quartile: "Q1", frequency: "Aylık", focus: "İnsan genetiği, genomik, hesaplamalı biyoloji", url: "https://www.cell.com/ajhg/home", field: "İnsan Genetiği", tags: ["temel", "genomik", "hesaplamalı"], color: "#1B4965", publisher: "Cell Press / ASHG", note: "ASHG'nin resmi dergisi. Popülasyon genetiğinden Mendelian hastalıklara kadar geniş kapsam." },
+  { id: 7, name: "Genetics in Medicine", abbr: "GIM", if2024: 6.6, quartile: "Q1", frequency: "Aylık", focus: "Klinik genetik, genetik test, genetik danışmanlık", url: "https://www.gimjournal.org/", field: "Klinik Genetik", tags: ["klinik", "test", "rehber"], color: "#2D6A4F", publisher: "ACMG / Elsevier", note: "ACMG'nin resmi dergisi. Klinik varyant yorumlama rehberleri burada yayımlanır." },
+  { id: 8, name: "Briefings in Bioinformatics", abbr: "Brief Bioinform", if2024: 6.8, quartile: "Q1", frequency: "2 ayda bir", focus: "Biyoinformatik pipeline'lar, araç geliştirme, veri analiz yöntemleri", url: "https://academic.oup.com/bib", field: "Biyoinformatik", tags: ["biyoinformatik", "hesaplamalı", "pipeline"], color: "#E63946", publisher: "Oxford University Press", note: "NGS pipeline karşılaştırma ve review makaleleri için en prestijli adres." },
+  { id: 9, name: "Nucleic Acids Research", abbr: "Nucleic Acids Res", if2024: 14.9, quartile: "Q1", frequency: "Haftalık", focus: "Nükleik asit araştırmaları, veritabanları, biyoinformatik araçlar", url: "https://academic.oup.com/nar", field: "Moleküler Genetik", tags: ["moleküler", "biyoinformatik", "pipeline"], color: "#D4AC0D", publisher: "Oxford University Press", note: "Database ve web-server özel sayıları biyoinformatik araçları için referans kaynağı." },
+  { id: 10, name: "Human Molecular Genetics", abbr: "Hum Mol Genet", if2024: 6.0, quartile: "Q1", frequency: "2 haftada bir", focus: "Moleküler genetik mekanizmalar, hastalık modelleri", url: "https://academic.oup.com/hmg", field: "Moleküler Genetik", tags: ["moleküler", "temel", "fonksiyonel"], color: "#6C3483", publisher: "Oxford University Press", note: "Hastalık mekanizmalarının moleküler düzeyde araştırılması, fare modelleri ve fonksiyonel çalışmalar." },
+  { id: 11, name: "The Pharmacogenomics Journal", abbr: "Pharmacogenomics J", if2024: 6.1, quartile: "Q1", frequency: "2 ayda bir", focus: "Farmakogenomik, ilaç yanıtı, kişiselleştirilmiş tıp", url: "https://www.nature.com/tpj/", field: "Farmakogenetik", tags: ["farmakogenetik", "translasyonel", "klinik"], color: "#117A65", publisher: "Nature Portfolio", note: "İlaç yanıtında genetik varyasyonlar ve kişiselleştirilmiş tedavi stratejileri." },
+
+  // === Q2 — IF 3–6 ===
+  { id: 12, name: "European Journal of Human Genetics", abbr: "EJHG", if2024: 3.7, quartile: "Q2", frequency: "Aylık", focus: "Klinik genetik, sitogenetik, moleküler genetik", url: "https://www.nature.com/ejhg/", field: "Klinik Genetik", tags: ["klinik", "moleküler", "sitogenetik"], color: "#003566", publisher: "ESHG / Nature Portfolio", note: "Avrupa perspektifli klinik genetik. Türk genetikçilerin sık yayın yaptığı dergi." },
+  { id: 13, name: "Human Mutation / Human Genetics", abbr: "Hum Genet", if2024: 3.8, quartile: "Q2", frequency: "Aylık", focus: "Mutasyon analizi, varyant fonksiyonel çalışmaları", url: "https://link.springer.com/journal/439", field: "Moleküler Genetik", tags: ["moleküler", "varyant", "fonksiyonel"], color: "#7B2D8E", publisher: "Springer", note: "Varyant-fonksiyon ilişkisi ve in silico analiz çalışmaları için önemli." },
+  { id: 14, name: "Bioinformatics", abbr: "Bioinformatics", if2024: 4.4, quartile: "Q2", frequency: "2 haftada bir", focus: "Algoritma geliştirme, varyant çağırma, yazılım araçları", url: "https://academic.oup.com/bioinformatics", field: "Biyoinformatik", tags: ["biyoinformatik", "hesaplamalı", "pipeline", "varyant"], color: "#2A9D8F", publisher: "Oxford University Press", note: "GATK, ACMG otomasyon araçları, varyant sınıflandırma algoritmaları burada yayımlanır." },
+  { id: 15, name: "Human Genomics", abbr: "Hum Genomics", if2024: 3.8, quartile: "Q2", frequency: "Sürekli", focus: "Klinik biyoinformatik, WES/WGS analiz, varyant yorumlama", url: "https://humgenomics.biomedcentral.com/", field: "Klinik Genomik", tags: ["biyoinformatik", "genomik", "varyant", "klinik"], color: "#457B9D", publisher: "BMC / Springer Nature", note: "WES/WGS klinik biyoinformatik çalışmaları ve varyant filtreleme stratejileri. Open access." },
+  { id: 16, name: "Clinical Genetics", abbr: "Clin Genet", if2024: 3.2, quartile: "Q2", frequency: "Aylık", focus: "Klinik genetik, moleküler tanı, danışmanlık", url: "https://onlinelibrary.wiley.com/journal/13990004", field: "Klinik Genetik", tags: ["klinik", "moleküler", "test"], color: "#264653", publisher: "Wiley", note: "Kısa vaka raporları (Letter) formatı rezidanlar için hızlı yayın imkanı sunar." },
+  { id: 17, name: "Orphanet Journal of Rare Diseases", abbr: "OJRD", if2024: 3.4, quartile: "Q2", frequency: "Sürekli", focus: "Nadir hastalıklar, epidemiyoloji, tanı yolculuğu", url: "https://ojrd.biomedcentral.com/", field: "Nadir Hastalıklar", tags: ["klinik", "nadir", "translasyonel"], color: "#588157", publisher: "BMC / Springer Nature", note: "Nadir hastalık kohortları ve tanı gecikme süreleri analizleri. Open access." },
+  { id: 18, name: "Journal of Medical Genetics", abbr: "J Med Genet", if2024: 4.0, quartile: "Q2", frequency: "Aylık", focus: "Tıbbi genetik, genotip-fenotip korelasyonları", url: "https://jmg.bmj.com/", field: "Klinik Genetik", tags: ["klinik", "moleküler", "vaka"], color: "#1F618D", publisher: "BMJ", note: "Genotip-fenotip korelasyon çalışmaları ve yeni sendrom tanımlamaları." },
+  { id: 19, name: "Pharmacogenomics", abbr: "Pharmacogenomics", if2024: 3.1, quartile: "Q2", frequency: "Aylık", focus: "Farmakogenomik uygulamalar, ilaç metabolizması genetiği", url: "https://www.future-medicine.com/journal/pgs", field: "Farmakogenetik", tags: ["farmakogenetik", "klinik", "translasyonel"], color: "#148F77", publisher: "Future Medicine", note: "CYP enzim polimorfizmleri, ilaç doz ayarlama ve farmakogenetik klinik uygulamalar." },
+  { id: 20, name: "BMC Genomics", abbr: "BMC Genomics", if2024: 3.5, quartile: "Q2", frequency: "Sürekli", focus: "Genomik, transkriptomik, epigenomik, metagenomik", url: "https://bmcgenomics.biomedcentral.com/", field: "Genomik", tags: ["genomik", "hesaplamalı", "temel"], color: "#2E86C1", publisher: "BMC / Springer Nature", note: "Geniş kapsamlı genomik çalışmalar. Erişilebilir IF ve open access." },
+  { id: 21, name: "Molecular Genetics and Metabolism", abbr: "Mol Genet Metab", if2024: 3.6, quartile: "Q2", frequency: "Aylık", focus: "Kalıtsal metabolizma hastalıkları, enzim eksiklikleri, tedavi", url: "https://www.sciencedirect.com/journal/molecular-genetics-and-metabolism", field: "Metabolik Genetik", tags: ["metabolik", "klinik", "translasyonel"], color: "#D35400", publisher: "Elsevier", note: "IEM (Inborn Errors of Metabolism) için temel dergi. Yenidoğan tarama ve tedavi çalışmaları." },
+  { id: 22, name: "Cytogenetic and Genome Research", abbr: "Cytogenet Genome Res", if2024: 3.1, quartile: "Q2", frequency: "2 ayda bir", focus: "Sitogenetik, kromozom yapısı, genom organizasyonu", url: "https://karger.com/cgr", field: "Sitogenetik", tags: ["sitogenetik", "temel", "genomik"], color: "#7D3C98", publisher: "Karger", note: "Klasik sitogenetik ve modern moleküler sitogenetik (FISH, array CGH) çalışmaları." },
+  { id: 23, name: "Genes", abbr: "Genes", if2024: 3.5, quartile: "Q2", frequency: "Sürekli", focus: "Genetik, genomik, gen ifadesi, epigenetik", url: "https://www.mdpi.com/journal/genes", field: "Genomik", tags: ["temel", "genomik", "moleküler"], color: "#27AE60", publisher: "MDPI", note: "Geniş kapsamlı genetik/genomik çalışmalar. Hızlı hakem süreci ve open access." },
+
+  // === Q3 — IF 1.5–3 ===
+  { id: 24, name: "American Journal of Medical Genetics Part A", abbr: "AJMG-A", if2024: 2.0, quartile: "Q3", frequency: "Aylık", focus: "Klinik genetik, dismorfik sendromlar, vaka raporları", url: "https://onlinelibrary.wiley.com/journal/15524833", field: "Klinik Genetik", tags: ["klinik", "dismorfik", "vaka"], color: "#6A040F", publisher: "Wiley", note: "Dismorfik sendrom vaka raporları için ana dergi. Rezidanlar için ideal ilk yayın hedefi." },
+  { id: 25, name: "Prenatal Diagnosis", abbr: "Prenat Diagn", if2024: 2.3, quartile: "Q3", frequency: "Aylık", focus: "Prenatal genetik tanı, NIPT, fetal tıp", url: "https://onlinelibrary.wiley.com/journal/10970223", field: "Prenatal Genetik", tags: ["prenatal", "klinik", "test"], color: "#E76F51", publisher: "Wiley", note: "NIPT, CVS/amniyosentez sonuçları ve prenatal array CGH çalışmaları." },
+  { id: 26, name: "Journal of Genetic Counseling", abbr: "J Genet Couns", if2024: 2.1, quartile: "Q3", frequency: "2 ayda bir", focus: "Genetik danışmanlık, psikososyal araştırma, hasta iletişimi", url: "https://onlinelibrary.wiley.com/journal/15733599", field: "Genetik Danışmanlık", tags: ["klinik", "danışmanlık", "psikososyal"], color: "#AF7AC5", publisher: "Wiley / NSGC", note: "Genetik danışmanlık pratiği ve araştırması. NSGC'nin resmi dergisi." },
+  { id: 27, name: "Molecular Cytogenetics", abbr: "Mol Cytogenet", if2024: 2.0, quartile: "Q3", frequency: "Sürekli", focus: "Moleküler sitogenetik, array CGH, FISH, kromozom analizi", url: "https://molecularcytogenetics.biomedcentral.com/", field: "Sitogenetik", tags: ["sitogenetik", "moleküler", "klinik"], color: "#C0392B", publisher: "BMC / Springer Nature", note: "Array CGH, FISH ve kromozomal mikrodelesyon/mikroduplikasyon vaka raporları. Open access." },
+  { id: 28, name: "BMC Medical Genetics / BMC Medical Genomics", abbr: "BMC Med Genomics", if2024: 2.7, quartile: "Q3", frequency: "Sürekli", focus: "Tıbbi genetik, klinik genomik, vaka serileri", url: "https://bmcmedgenomics.biomedcentral.com/", field: "Klinik Genomik", tags: ["klinik", "genomik", "vaka"], color: "#2980B9", publisher: "BMC / Springer Nature", note: "Klinik WES/WGS vaka raporları ve küçük kohort çalışmaları. Open access." },
+  { id: 29, name: "European Journal of Medical Genetics", abbr: "Eur J Med Genet", if2024: 2.2, quartile: "Q3", frequency: "2 ayda bir", focus: "Gelişimsel genetik, dismorfik sendromlar, konjenital anomaliler", url: "https://www.sciencedirect.com/journal/european-journal-of-medical-genetics", field: "Klinik Genetik", tags: ["klinik", "dismorfik", "vaka"], color: "#1ABC9C", publisher: "Elsevier", note: "Avrupa perspektifli klinik genetik vaka serileri ve genotip-fenotip çalışmaları." },
+  { id: 30, name: "Journal of Human Genetics", abbr: "J Hum Genet", if2024: 2.9, quartile: "Q3", frequency: "Aylık", focus: "İnsan genetiği, popülasyon genetiği, hastalık genleri", url: "https://www.nature.com/jhg/", field: "İnsan Genetiği", tags: ["temel", "genomik", "moleküler"], color: "#E74C3C", publisher: "Nature Portfolio / JHS", note: "Asya perspektifli insan genetiği. Popülasyon spesifik varyantlar ve hastalık çalışmaları." },
+  { id: 31, name: "Genetic Testing and Molecular Biomarkers", abbr: "Genet Test Mol Biomarkers", if2024: 1.7, quartile: "Q3", frequency: "Aylık", focus: "Genetik test validasyonu, moleküler biyobelirteçler", url: "https://www.liebertpub.com/journal/gtmb", field: "Genetik Test", tags: ["test", "moleküler", "klinik"], color: "#F39C12", publisher: "Mary Ann Liebert", note: "Genetik test yöntemlerinin validasyonu ve yeni moleküler biyobelirteç keşifleri." },
+  { id: 32, name: "Gene", abbr: "Gene", if2024: 2.6, quartile: "Q3", frequency: "Haftalık", focus: "Gen yapısı, ifadesi, düzenlenmesi, evrim", url: "https://www.sciencedirect.com/journal/gene", field: "Moleküler Genetik", tags: ["temel", "moleküler", "fonksiyonel"], color: "#16A085", publisher: "Elsevier", note: "Geniş kapsamlı moleküler genetik çalışmalar. Yüksek kabul oranı." },
+
+  // === Q4 — IF < 1.5 ===
+  { id: 33, name: "Molecular Syndromology", abbr: "Mol Syndromol", if2024: 1.4, quartile: "Q4", frequency: "2 ayda bir", focus: "Sendromik hastalıklar, dismorfik fenotip, gelişimsel bozukluklar", url: "https://karger.com/msy", field: "Klinik Genetik", tags: ["klinik", "dismorfik", "vaka"], color: "#95A5A6", publisher: "Karger", note: "Nadir sendromların fenotip-genotip tanımlaması. Vaka raporları için erişilebilir hedef." },
+  { id: 34, name: "Balkan Journal of Medical Genetics", abbr: "Balkan J Med Genet", if2024: 0.8, quartile: "Q4", frequency: "2 yılda bir", focus: "Balkan bölgesi genetik çalışmaları, popülasyon genetiği", url: "https://sciendo.com/journal/BJMG", field: "İnsan Genetiği", tags: ["klinik", "temel", "vaka"], color: "#7F8C8D", publisher: "Sciendo", note: "Bölgesel genetik çalışmalar. Türk araştırmacılar için erişilebilir yayın hedefi." },
+  { id: 35, name: "Journal of Community Genetics", abbr: "J Community Genet", if2024: 1.3, quartile: "Q4", frequency: "Sürekli", focus: "Toplum genetiği, taşıyıcı tarama, halk sağlığı genetiği", url: "https://link.springer.com/journal/12687", field: "Genetik Danışmanlık", tags: ["klinik", "danışmanlık", "halk sağlığı"], color: "#AEB6BF", publisher: "Springer", note: "Toplum tabanlı genetik tarama ve genetik danışmanlık araştırmaları." },
 ];
 
-const allTags = ["temel", "klinik", "genomik", "moleküler", "translasyonel", "hesaplamalı", "dismorfik", "prenatal", "vaka", "test", "rehber", "nadir", "varyant", "fonksiyonel", "biyoinformatik", "pipeline"];
-const tierInfo = { S: { label: "S — Elit", desc: "IF > 6", bg: "#FFD700" }, A: { label: "A — Güçlü", desc: "IF 2–6", bg: "#C0C0C0" }, B: { label: "B — Hedef", desc: "IF < 3, erişilebilir", bg: "#CD7F32" } };
+// Research fields for top-level filtering
+const researchFields = [
+  "Genomik", "Klinik Genetik", "Klinik Genomik", "Moleküler Genetik",
+  "Biyoinformatik", "İnsan Genetiği", "Sitogenetik", "Nadir Hastalıklar",
+  "Prenatal Genetik", "Farmakogenetik", "Metabolik Genetik",
+  "Genetik Danışmanlık", "Genetik Test"
+];
+
+const allTags = ["temel", "klinik", "genomik", "moleküler", "translasyonel", "hesaplamalı", "dismorfik", "prenatal", "vaka", "test", "rehber", "nadir", "varyant", "fonksiyonel", "biyoinformatik", "pipeline", "farmakogenetik", "metabolik", "sitogenetik", "danışmanlık", "derleme", "psikososyal", "halk sağlığı"];
+const quartileInfo = {
+  Q1: { label: "Q1", desc: "IF > 6", bg: "#22C55E", color: "#166534" },
+  Q2: { label: "Q2", desc: "IF 3–6", bg: "#3B82F6", color: "#1E40AF" },
+  Q3: { label: "Q3", desc: "IF 1.5–3", bg: "#F59E0B", color: "#92400E" },
+  Q4: { label: "Q4", desc: "IF < 1.5", bg: "#EF4444", color: "#991B1B" },
+};
 const periodLabels = { month: "Bu Ay", year: "Bu Yıl (2026)", alltime: "Tüm Zamanlar" };
 
 // PubMed NLM Title Abbreviation + ISSN for CrossRef
 const journalMeta = {
-  "American Journal of Human Genetics": { ta: "Am J Hum Genet", issn: "0002-9297" },
   "Nature Genetics": { ta: "Nat Genet", issn: "1061-4036" },
-  "Genetics in Medicine": { ta: "Genet Med", issn: "1098-3600" },
-  "European Journal of Human Genetics": { ta: "Eur J Hum Genet", issn: "1018-4813" },
-  "American Journal of Medical Genetics Part A": { ta: "Am J Med Genet A", issn: "1552-4825" },
-  "Human Mutation / Human Genetics": { ta: "Hum Genet", issn: "0340-6717" },
-  "Prenatal Diagnosis": { ta: "Prenat Diagn", issn: "0197-3851" },
-  "Clinical Genetics": { ta: "Clin Genet", issn: "0009-9163" },
+  "Nature Reviews Genetics": { ta: "Nat Rev Genet", issn: "1471-0056" },
+  "Genome Research": { ta: "Genome Res", issn: "1088-9051" },
   "Genome Medicine": { ta: "Genome Med", issn: "1756-994X" },
-  "Orphanet Journal of Rare Diseases": { ta: "Orphanet J Rare Dis", issn: "1750-1172" },
+  "Genome Biology": { ta: "Genome Biol", issn: "1474-760X" },
+  "American Journal of Human Genetics": { ta: "Am J Hum Genet", issn: "0002-9297" },
+  "Genetics in Medicine": { ta: "Genet Med", issn: "1098-3600" },
   "Briefings in Bioinformatics": { ta: "Brief Bioinform", issn: "1467-5463" },
-  "Human Genomics": { ta: "Hum Genomics", issn: "1479-7364" },
+  "Nucleic Acids Research": { ta: "Nucleic Acids Res", issn: "0305-1048" },
+  "Human Molecular Genetics": { ta: "Hum Mol Genet", issn: "0964-6906" },
+  "The Pharmacogenomics Journal": { ta: "Pharmacogenomics J", issn: "1470-269X" },
+  "European Journal of Human Genetics": { ta: "Eur J Hum Genet", issn: "1018-4813" },
+  "Human Mutation / Human Genetics": { ta: "Hum Genet", issn: "0340-6717" },
   "Bioinformatics": { ta: "Bioinformatics", issn: "1367-4803" },
+  "Human Genomics": { ta: "Hum Genomics", issn: "1479-7364" },
+  "Clinical Genetics": { ta: "Clin Genet", issn: "0009-9163" },
+  "Orphanet Journal of Rare Diseases": { ta: "Orphanet J Rare Dis", issn: "1750-1172" },
+  "Journal of Medical Genetics": { ta: "J Med Genet", issn: "0022-2593" },
+  "Pharmacogenomics": { ta: "Pharmacogenomics", issn: "1462-2416" },
+  "BMC Genomics": { ta: "BMC Genomics", issn: "1471-2164" },
+  "Molecular Genetics and Metabolism": { ta: "Mol Genet Metab", issn: "1096-7192" },
+  "Cytogenetic and Genome Research": { ta: "Cytogenet Genome Res", issn: "1424-8581" },
+  "Genes": { ta: "Genes (Basel)", issn: "2073-4425" },
+  "American Journal of Medical Genetics Part A": { ta: "Am J Med Genet A", issn: "1552-4825" },
+  "Prenatal Diagnosis": { ta: "Prenat Diagn", issn: "0197-3851" },
+  "Journal of Genetic Counseling": { ta: "J Genet Couns", issn: "1059-7700" },
+  "Molecular Cytogenetics": { ta: "Mol Cytogenet", issn: "1755-8166" },
+  "BMC Medical Genetics / BMC Medical Genomics": { ta: "BMC Med Genomics", issn: "1755-8794" },
+  "European Journal of Medical Genetics": { ta: "Eur J Med Genet", issn: "1769-7212" },
+  "Journal of Human Genetics": { ta: "J Hum Genet", issn: "1434-5161" },
+  "Genetic Testing and Molecular Biomarkers": { ta: "Genet Test Mol Biomarkers", issn: "2159-3353" },
+  "Gene": { ta: "Gene", issn: "0378-1119" },
+  "Molecular Syndromology": { ta: "Mol Syndromol", issn: "1661-8769" },
+  "Balkan Journal of Medical Genetics": { ta: "Balkan J Med Genet", issn: "1311-0160" },
+  "Journal of Community Genetics": { ta: "J Community Genet", issn: "1868-310X" },
 };
 
 function getDateRange(period) {
@@ -434,32 +420,37 @@ function ArticlePanel({ journal, onClose }) {
 }
 
 export default function GenetikDergiTakip() {
-  const [selectedTier, setSelectedTier] = useState(null);
+  const [selectedQuartiles, setSelectedQuartiles] = useState([]);
+  const [selectedField, setSelectedField] = useState(null);
   const [selectedTags, setSelectedTags] = useState([]);
   const [search, setSearch] = useState("");
   const [bookmarks, setBookmarks] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
   const [articlePanelId, setArticlePanelId] = useState(null);
-  const [sortBy, setSortBy] = useState("tier");
+  const [sortBy, setSortBy] = useState("quartile");
+  const [ifRange, setIfRange] = useState([0, 50]);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
+  const toggleQuartile = (q) => setSelectedQuartiles(prev => prev.includes(q) ? prev.filter(x => x !== q) : [...prev, q]);
   const toggleTag = (tag) => setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
   const toggleBookmark = (id) => setBookmarks(prev => prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id]);
 
-  const tierOrder = { S: 0, A: 1, B: 2 };
+  const quartileOrder = { Q1: 0, Q2: 1, Q3: 2, Q4: 3 };
   const filtered = journals
     .filter(j => {
-      if (selectedTier && j.tier !== selectedTier) return false;
+      if (selectedQuartiles.length > 0 && !selectedQuartiles.includes(j.quartile)) return false;
+      if (selectedField && j.field !== selectedField) return false;
       if (selectedTags.length > 0 && !selectedTags.some(t => j.tags.includes(t))) return false;
+      if (j.if2024 < ifRange[0] || j.if2024 > ifRange[1]) return false;
       if (search && !j.name.toLowerCase().includes(search.toLowerCase()) && !j.abbr.toLowerCase().includes(search.toLowerCase()) && !j.focus.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     })
     .sort((a, b) => {
       if (sortBy === "if") return b.if2024 - a.if2024;
       if (sortBy === "name") return a.name.localeCompare(b.name);
-      return tierOrder[a.tier] - tierOrder[b.tier] || b.if2024 - a.if2024;
+      return quartileOrder[a.quartile] - quartileOrder[b.quartile] || b.if2024 - a.if2024;
     });
 
   return (
@@ -488,30 +479,73 @@ export default function GenetikDergiTakip() {
             Dergi Takip Rehberi
           </h1>
           <p style={{ color: "#9CA3AF", fontSize: "14px", maxWidth: "560px", lineHeight: 1.6, margin: 0 }}>
-            AI destekli makale keşfi ile zenginleştirilmiş dergi koleksiyonu. Her derginin kartını açıp{" "}
-            <strong style={{ color: "#C4B5FD" }}>📄 Makaleleri Keşfet</strong> butonuna tıklayarak bu ay, bu yıl ve tüm zamanların en önemli makalelerini görüntüleyin.
+            {journals.length} dergi, Q1–Q4 quartile ve araştırma alanına göre filtrele. Kartı açıp{" "}
+            <strong style={{ color: "#C4B5FD" }}>Makaleleri Keşfet</strong> ile PubMed'den güncel makalelere eriş.
           </p>
         </div>
       </div>
 
       <div style={{ maxWidth: "960px", margin: "0 auto", padding: "24px 32px 60px", position: "relative", zIndex: 1 }}>
 
-        {/* Tier pills */}
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "16px" }}>
-          {Object.entries(tierInfo).map(([key, val]) => (
-            <button key={key} onClick={() => setSelectedTier(selectedTier === key ? null : key)} style={{
-              padding: "8px 18px", borderRadius: "999px", border: "1px solid",
-              borderColor: selectedTier === key ? val.bg : "rgba(255,255,255,0.08)",
-              background: selectedTier === key ? `${val.bg}18` : "rgba(255,255,255,0.02)",
-              color: selectedTier === key ? val.bg : "#9CA3AF",
-              fontSize: "13px", fontWeight: 600, cursor: "pointer", transition: "all 0.2s ease",
-              display: "flex", alignItems: "center", gap: "6px"
-            }}>
-              <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: val.bg, opacity: selectedTier === key ? 1 : 0.4 }} />
-              {val.label}
-              <span style={{ fontWeight: 400, opacity: 0.6, fontSize: "11px" }}>({val.desc})</span>
-            </button>
-          ))}
+        {/* Research Field Selector */}
+        <div style={{ marginBottom: "16px" }}>
+          <div style={{ fontSize: "11px", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: "8px", fontWeight: 500 }}>Araştırma Alanı</div>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            <button onClick={() => setSelectedField(null)} style={{
+              padding: "6px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 500,
+              border: "1px solid", borderColor: !selectedField ? "rgba(139,92,246,0.5)" : "rgba(255,255,255,0.08)",
+              background: !selectedField ? "rgba(139,92,246,0.12)" : "rgba(255,255,255,0.02)",
+              color: !selectedField ? "#C4B5FD" : "#9CA3AF", cursor: "pointer", transition: "all 0.15s ease"
+            }}>Tümü</button>
+            {researchFields.map(field => {
+              const count = journals.filter(j => j.field === field).length;
+              return (
+                <button key={field} onClick={() => setSelectedField(selectedField === field ? null : field)} style={{
+                  padding: "6px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 500,
+                  border: "1px solid", borderColor: selectedField === field ? "rgba(139,92,246,0.5)" : "rgba(255,255,255,0.08)",
+                  background: selectedField === field ? "rgba(139,92,246,0.12)" : "rgba(255,255,255,0.02)",
+                  color: selectedField === field ? "#C4B5FD" : "#9CA3AF", cursor: "pointer", transition: "all 0.15s ease"
+                }}>
+                  {field} <span style={{ opacity: 0.5, fontSize: "10px" }}>({count})</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Quartile pills + IF Range */}
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "16px", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {Object.entries(quartileInfo).map(([key, val]) => {
+              const isSelected = selectedQuartiles.includes(key);
+              return (
+                <button key={key} onClick={() => toggleQuartile(key)} style={{
+                  padding: "7px 16px", borderRadius: "999px", border: "1px solid",
+                  borderColor: isSelected ? val.bg : "rgba(255,255,255,0.08)",
+                  background: isSelected ? `${val.bg}20` : "rgba(255,255,255,0.02)",
+                  color: isSelected ? val.bg : "#9CA3AF",
+                  fontSize: "13px", fontWeight: 600, cursor: "pointer", transition: "all 0.2s ease",
+                  display: "flex", alignItems: "center", gap: "6px"
+                }}>
+                  <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: val.bg, opacity: isSelected ? 1 : 0.4 }} />
+                  {val.label}
+                  <span style={{ fontWeight: 400, opacity: 0.6, fontSize: "11px" }}>({val.desc})</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 14px", borderRadius: "10px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <span style={{ fontSize: "11px", color: "#6B7280", whiteSpace: "nowrap" }}>IF:</span>
+            <input type="range" min="0" max="50" step="0.5" value={ifRange[0]}
+              onChange={e => setIfRange([Math.min(parseFloat(e.target.value), ifRange[1]), ifRange[1]])}
+              style={{ width: "80px", accentColor: "#8B5CF6" }} />
+            <span style={{ fontSize: "12px", color: "#D1D5DB", fontVariantNumeric: "tabular-nums", minWidth: "60px", textAlign: "center" }}>
+              {ifRange[0]} – {ifRange[1]}
+            </span>
+            <input type="range" min="0" max="50" step="0.5" value={ifRange[1]}
+              onChange={e => setIfRange([ifRange[0], Math.max(parseFloat(e.target.value), ifRange[0])])}
+              style={{ width: "80px", accentColor: "#8B5CF6" }} />
+          </div>
         </div>
 
         {/* Search + Sort */}
@@ -526,7 +560,7 @@ export default function GenetikDergiTakip() {
             background: "rgba(15,20,35,0.9)", color: "#9CA3AF", fontSize: "13px", cursor: "pointer",
             fontFamily: "'DM Sans', sans-serif"
           }}>
-            <option value="tier">Tier'a göre</option>
+            <option value="quartile">Quartile'a göre</option>
             <option value="if">IF'ye göre</option>
             <option value="name">İsme göre</option>
           </select>
@@ -542,11 +576,11 @@ export default function GenetikDergiTakip() {
               color: selectedTags.includes(tag) ? "#C4B5FD" : "#6B7280", cursor: "pointer", transition: "all 0.15s ease"
             }}>{tag}</button>
           ))}
-          {selectedTags.length > 0 && (
-            <button onClick={() => setSelectedTags([])} style={{
+          {(selectedTags.length > 0 || selectedQuartiles.length > 0 || selectedField) && (
+            <button onClick={() => { setSelectedTags([]); setSelectedQuartiles([]); setSelectedField(null); setIfRange([0, 50]); }} style={{
               padding: "4px 12px", borderRadius: "6px", fontSize: "11px",
               border: "none", background: "rgba(239,68,68,0.1)", color: "#F87171", cursor: "pointer"
-            }}>✕ Temizle</button>
+            }}>✕ Tümünü Temizle</button>
           )}
         </div>
 
@@ -587,17 +621,20 @@ export default function GenetikDergiTakip() {
                 <div style={{ padding: "16px 20px", display: "grid", gridTemplateColumns: "auto 1fr auto auto", alignItems: "center", gap: "16px" }}>
                   <div style={{
                     width: "36px", height: "36px", borderRadius: "10px",
-                    background: `${tierInfo[j.tier].bg}15`, border: `1px solid ${tierInfo[j.tier].bg}30`,
+                    background: `${quartileInfo[j.quartile].bg}15`, border: `1px solid ${quartileInfo[j.quartile].bg}30`,
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: "14px", fontWeight: 700, color: tierInfo[j.tier].bg, flexShrink: 0
-                  }}>{j.tier}</div>
+                    fontSize: "12px", fontWeight: 700, color: quartileInfo[j.quartile].bg, flexShrink: 0
+                  }}>{j.quartile}</div>
 
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
                       <span style={{ fontSize: "15px", fontWeight: 600, color: "#F3F4F6" }}>{j.abbr}</span>
                       <span style={{ fontSize: "12px", color: "#6B7280", fontWeight: 400 }}>{j.name}</span>
                     </div>
-                    <div style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "2px" }}>{j.focus}</div>
+                    <div style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "2px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <span>{j.focus}</span>
+                      <span style={{ fontSize: "10px", padding: "1px 8px", borderRadius: "4px", background: "rgba(139,92,246,0.1)", color: "#A78BFA", border: "1px solid rgba(139,92,246,0.2)" }}>{j.field}</span>
+                    </div>
                   </div>
 
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -694,8 +731,8 @@ export default function GenetikDergiTakip() {
           marginTop: "48px", paddingTop: "24px", borderTop: "1px solid rgba(255,255,255,0.04)",
           fontSize: "11px", color: "#4B5563", textAlign: "center", lineHeight: 1.8
         }}>
-          IF değerleri 2024 JCR verilerine dayanmaktadır. Makale verileri PubMed ve CrossRef API'lerinden gerçek zamanlı olarak çekilmektedir.
-          <br />Tıbbi Genetik Rezidanlığı Dergi Takip Rehberi
+          IF değerleri 2024 JCR verilerine, quartile bilgileri Genetics &amp; Heredity kategorisine dayanmaktadır. Makale verileri PubMed ve CrossRef API'lerinden gerçek zamanlı olarak çekilmektedir.
+          <br />Tıbbi Genetik Dergi Takip Rehberi — {journals.length} dergi
         </div>
       </div>
     </div>
