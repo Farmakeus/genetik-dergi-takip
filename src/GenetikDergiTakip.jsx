@@ -185,6 +185,7 @@ async function fetchFromPubMed(journalName, period) {
       year: isNaN(year) ? rec.pubdate : year,
       summary: rec.title,
       doi,
+      pmid: id,
       why: `${rec.source || journalName} — PMID: ${id}`,
     });
     if (articles.length >= 3) break;
@@ -386,23 +387,42 @@ function ArticlePanel({ journal, onClose }) {
                   }}>
                     💡 {art.why}
                   </div>
-                  {art.doi && (
-                    <a href={art.doi.startsWith("http") ? art.doi : `https://doi.org/${art.doi}`}
-                      target="_blank" rel="noopener noreferrer"
-                      onClick={e => e.stopPropagation()}
-                      style={{
-                        display: "inline-block", marginTop: "8px", fontSize: "11px",
-                        color: "#6B7280", textDecoration: "none",
-                        padding: "3px 10px", borderRadius: "4px",
-                        background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
-                        transition: "color 0.15s"
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.color = journal.color}
-                      onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
-                    >
-                      DOI ile Makaleye Git →
-                    </a>
-                  )}
+                  <div style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
+                    {art.doi && (
+                      <a href={art.doi.startsWith("http") ? art.doi : `https://doi.org/${art.doi}`}
+                        target="_blank" rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          display: "inline-block", fontSize: "11px",
+                          color: "#6B7280", textDecoration: "none",
+                          padding: "3px 10px", borderRadius: "4px",
+                          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+                          transition: "color 0.15s"
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = journal.color}
+                        onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
+                      >
+                        DOI →
+                      </a>
+                    )}
+                    {art.pmid && (
+                      <a href={`https://pubmed.ncbi.nlm.nih.gov/${art.pmid}/`}
+                        target="_blank" rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          display: "inline-block", fontSize: "11px",
+                          color: "#6B7280", textDecoration: "none",
+                          padding: "3px 10px", borderRadius: "4px",
+                          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+                          transition: "color 0.15s"
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.color = "#2DD4BF"}
+                        onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
+                      >
+                        PubMed →
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
