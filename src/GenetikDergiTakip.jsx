@@ -98,21 +98,21 @@ const allTags = ["temel", "klinik", "genomik", "moleküler", "translasyonel", "h
 const tierInfo = { S: { label: "S — Elit", desc: "IF > 6", bg: "#FFD700" }, A: { label: "A — Güçlü", desc: "IF 2–6", bg: "#C0C0C0" }, B: { label: "B — Hedef", desc: "IF < 3, erişilebilir", bg: "#CD7F32" } };
 const periodLabels = { month: "Bu Ay", year: "Bu Yıl (2026)", alltime: "Tüm Zamanlar" };
 
-// ISSN mapping for PubMed searches (more reliable than journal name)
-const journalISSN = {
-  "American Journal of Human Genetics": "0002-9297",
-  "Nature Genetics": "1061-4036",
-  "Genetics in Medicine": "1098-3600",
-  "European Journal of Human Genetics": "1018-4813",
-  "American Journal of Medical Genetics Part A": "1552-4825",
-  "Human Mutation / Human Genetics": "0340-6717",
-  "Prenatal Diagnosis": "0197-3851",
-  "Clinical Genetics": "0009-9163",
-  "Genome Medicine": "1756-994X",
-  "Orphanet Journal of Rare Diseases": "1750-1172",
-  "Briefings in Bioinformatics": "1467-5463",
-  "Human Genomics": "1479-7364",
-  "Bioinformatics": "1367-4803",
+// PubMed NLM Title Abbreviation + ISSN for CrossRef
+const journalMeta = {
+  "American Journal of Human Genetics": { ta: "Am J Hum Genet", issn: "0002-9297" },
+  "Nature Genetics": { ta: "Nat Genet", issn: "1061-4036" },
+  "Genetics in Medicine": { ta: "Genet Med", issn: "1098-3600" },
+  "European Journal of Human Genetics": { ta: "Eur J Hum Genet", issn: "1018-4813" },
+  "American Journal of Medical Genetics Part A": { ta: "Am J Med Genet A", issn: "1552-4825" },
+  "Human Mutation / Human Genetics": { ta: "Hum Genet", issn: "0340-6717" },
+  "Prenatal Diagnosis": { ta: "Prenat Diagn", issn: "0197-3851" },
+  "Clinical Genetics": { ta: "Clin Genet", issn: "0009-9163" },
+  "Genome Medicine": { ta: "Genome Med", issn: "1756-994X" },
+  "Orphanet Journal of Rare Diseases": { ta: "Orphanet J Rare Dis", issn: "1750-1172" },
+  "Briefings in Bioinformatics": { ta: "Brief Bioinform", issn: "1467-5463" },
+  "Human Genomics": { ta: "Hum Genomics", issn: "1479-7364" },
+  "Bioinformatics": { ta: "Bioinformatics", issn: "1367-4803" },
 };
 
 function getDateRange(period) {
@@ -131,29 +131,49 @@ function getDateRange(period) {
   return { mindate: `${y - 10}/01/01`, maxdate: `${y}/12/31` };
 }
 
+async function pubmedSearch(journalQuery, mindate, maxdate, sort) {
+  try {
+    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(journalQuery)}&datetype=pdat&mindate=${mindate}&maxdate=${maxdate}&retmax=5&sort=${sort}&retmode=json`;
+    const searchRes = await fetch(searchUrl);
+    if (!searchRes.ok) return [];
+    const searchData = await searchRes.json();
+    return searchData?.esearchresult?.idlist || [];
+  } catch {
+    return [];
+  }
+}
+
 async function fetchFromPubMed(journalName, period) {
-  const issn = journalISSN[journalName];
+  const meta = journalMeta[journalName];
+  const ta = meta?.ta;
   const { mindate, maxdate } = getDateRange(period);
-  const journalQuery = issn ? `${issn}[ISSN]` : `"${journalName}"[Journal]`;
-  const sort = period === "alltime" ? "relevance" : "date";
+  const journalQuery = ta ? `"${ta}"[ta]` : `"${journalName}"[Journal]`;
+  const sort = period === "alltime" ? "relevance" : "pub+date";
 
-  const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(journalQuery)}&datetype=pdat&mindate=${mindate}&maxdate=${maxdate}&retmax=5&sort=${sort}&retmode=json`;
+  let ids = await pubmedSearch(journalQuery, mindate, maxdate, sort);
 
-  const searchRes = await fetch(searchUrl);
-  if (!searchRes.ok) return null;
-  const searchData = await searchRes.json();
-  const ids = searchData?.esearchresult?.idlist;
-  if (!ids || ids.length === 0) return null;
+  // If "Bu Ay" returns nothing, try last 3 months
+  if (ids.length === 0 && period === "month") {
+    const now = new Date();
+    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    const fallbackMin = `${threeMonthsAgo.getFullYear()}/${String(threeMonthsAgo.getMonth() + 1).padStart(2, "0")}/01`;
+    ids = await pubmedSearch(journalQuery, fallbackMin, maxdate, sort);
+  }
+
+  if (ids.length === 0) return null;
 
   const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(",")}&retmode=json`;
   const fetchRes = await fetch(fetchUrl);
   if (!fetchRes.ok) return null;
   const fetchData = await fetchRes.json();
 
+  const expectedSource = ta || "";
   const articles = [];
   for (const id of ids) {
     const rec = fetchData?.result?.[id];
     if (!rec) continue;
+    // Verify the article actually belongs to this journal
+    if (expectedSource && rec.source && rec.source.toLowerCase() !== expectedSource.toLowerCase()) continue;
     const doi = (rec.articleids || []).find(a => a.idtype === "doi")?.value || "";
     const authors = rec.authors?.length > 0
       ? (rec.authors.length > 2 ? `${rec.authors[0].name} et al.` : rec.authors.map(a => a.name).join(", "))
@@ -173,13 +193,25 @@ async function fetchFromPubMed(journalName, period) {
 }
 
 async function fetchFromCrossRef(journalName, period) {
+  const meta = journalMeta[journalName];
+  const issn = meta?.issn;
+  if (!issn) return null; // Can't reliably query CrossRef without ISSN
+
   const { mindate, maxdate } = getDateRange(period);
-  const fromDate = mindate.replace(/\//g, "-");
+  let fromDate = mindate.replace(/\//g, "-");
   const untilDate = maxdate.replace(/\//g, "-");
+
+  // If "Bu Ay", expand to last 3 months as fallback
+  if (period === "month") {
+    const now = new Date();
+    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    fromDate = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, "0")}-01`;
+  }
+
   const sort = period === "alltime" ? "is-referenced-by-count" : "published";
   const order = "desc";
 
-  const url = `https://api.crossref.org/works?query.container-title=${encodeURIComponent(journalName)}&filter=from-pub-date:${fromDate},until-pub-date:${untilDate}&sort=${sort}&order=${order}&rows=3&select=title,author,published-print,published-online,DOI,container-title`;
+  const url = `https://api.crossref.org/works?filter=issn:${issn},from-pub-date:${fromDate},until-pub-date:${untilDate}&sort=${sort}&order=${order}&rows=3&select=title,author,published-print,published-online,DOI,container-title`;
 
   const res = await fetch(url, {
     headers: { "User-Agent": "GenetikDergiTakip/1.0 (mailto:research@example.com)" }
