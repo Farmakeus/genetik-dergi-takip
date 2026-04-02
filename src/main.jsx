@@ -1,9 +1,9 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import TusTakip from './TusTakip'
+import GenetikDergiTakip from './GenetikDergiTakip'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <TusTakip />
+    <GenetikDergiTakip />
   </React.StrictMode>,
 )
