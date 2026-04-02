@@ -1036,9 +1036,75 @@ function ReadingListPanel({ readingList, setReadingList }) {
 }
 
 // ──────────────────────────────────────────────
-// ADD JOURNAL FORM
+// OPENALEX JOURNAL SEARCH
+// ──────────────────────────────────────────────
+async function searchOpenAlex(query) {
+  if (!query || query.trim().length < 2) return [];
+  const url = `https://api.openalex.org/sources?search=${encodeURIComponent(query.trim())}&filter=type:journal&per_page=12&select=id,display_name,alternate_titles,abbreviated_title,issn,host_organization_name,homepage_url,type,is_oa,works_count,cited_by_count,summary_stats,topics`;
+  try {
+    const res = await fetch(url, { headers: { "User-Agent": "mailto:research@genetik-dergi-takip.app" } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.results || []).map(src => {
+      const hIndex = src.summary_stats?.h_index || 0;
+      const citedBy = src.cited_by_count || 0;
+      const worksCount = src.works_count || 0;
+      // Approximate IF from cited_by_count / works_count (2-year window not available, use rough ratio)
+      const approxIF = worksCount > 0 ? Math.round((citedBy / worksCount) * 10) / 10 : 0;
+      // Estimate quartile from h-index
+      const estQuartile = hIndex >= 150 ? "Q1" : hIndex >= 60 ? "Q2" : hIndex >= 25 ? "Q3" : "Q4";
+      // Extract top topics/concepts for field detection
+      const topTopics = (src.topics || []).slice(0, 5).map(t => t.display_name);
+
+      return {
+        openAlexId: src.id,
+        name: src.display_name || "",
+        abbr: src.abbreviated_title || src.display_name?.split(" ").map(w => w[0]).join("") || "",
+        issn: src.issn?.[0] || "",
+        publisher: src.host_organization_name || "",
+        url: src.homepage_url || "",
+        isOA: src.is_oa || false,
+        worksCount,
+        citedBy,
+        hIndex,
+        approxIF,
+        estQuartile,
+        topTopics,
+      };
+    });
+  } catch (e) {
+    console.error("OpenAlex search error:", e);
+    return [];
+  }
+}
+
+function guessFieldFromTopics(topics) {
+  const topicStr = (topics || []).join(" ").toLowerCase();
+  if (topicStr.includes("bioinformatic") || topicStr.includes("computational")) return "Biyoinformatik";
+  if (topicStr.includes("pharmacogen") || topicStr.includes("pharmacol")) return "Farmakogenetik";
+  if (topicStr.includes("prenatal") || topicStr.includes("fetal")) return "Prenatal Genetik";
+  if (topicStr.includes("cytogenet") || topicStr.includes("chromosome")) return "Sitogenetik";
+  if (topicStr.includes("rare disease") || topicStr.includes("orphan")) return "Nadir Hastalıklar";
+  if (topicStr.includes("metabol")) return "Metabolik Genetik";
+  if (topicStr.includes("counsel")) return "Genetik Danışmanlık";
+  if (topicStr.includes("genomic") || topicStr.includes("genome")) return "Genomik";
+  if (topicStr.includes("molecular")) return "Moleküler Genetik";
+  if (topicStr.includes("clinical") || topicStr.includes("medical")) return "Klinik Genetik";
+  if (topicStr.includes("human genet")) return "İnsan Genetiği";
+  return "Klinik Genetik";
+}
+
+// ──────────────────────────────────────────────
+// ADD JOURNAL FORM (with OpenAlex search)
 // ──────────────────────────────────────────────
 function AddJournalForm({ onAdd, onClose, existingNames }) {
+  const [mode, setMode] = useState("search"); // "search" | "manual" | "edit"
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedResult, setSelectedResult] = useState(null);
+  const searchTimeout = useRef(null);
+
   const [form, setForm] = useState({
     name: "", abbr: "", if2024: "", quartile: "Q2", frequency: "Aylık",
     focus: "", url: "", field: "Klinik Genetik", tags: [],
@@ -1052,9 +1118,46 @@ function AddJournalForm({ onAdd, onClose, existingNames }) {
     ...prev, tags: prev.tags.includes(tag) ? prev.tags.filter(t => t !== tag) : [...prev.tags, tag]
   }));
 
+  // Debounced OpenAlex search
+  const doSearch = useCallback((q) => {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (!q || q.trim().length < 2) { setSearchResults([]); setSearching(false); return; }
+    setSearching(true);
+    searchTimeout.current = setTimeout(async () => {
+      const results = await searchOpenAlex(q);
+      setSearchResults(results);
+      setSearching(false);
+    }, 400);
+  }, []);
+
+  const handleSearchInput = (val) => {
+    setSearchQuery(val);
+    doSearch(val);
+  };
+
+  const selectSearchResult = (result) => {
+    setSelectedResult(result);
+    setForm({
+      name: result.name,
+      abbr: result.abbr,
+      if2024: result.approxIF > 0 ? String(result.approxIF) : "",
+      quartile: result.estQuartile,
+      frequency: "Aylık",
+      focus: result.topTopics.slice(0, 3).join(", "),
+      url: result.url,
+      field: guessFieldFromTopics(result.topTopics),
+      tags: [],
+      publisher: result.publisher,
+      note: `h-index: ${result.hIndex} · ${result.worksCount.toLocaleString()} makale · ${result.citedBy.toLocaleString()} atıf`,
+      openAccess: result.isOA,
+    });
+    setMode("edit");
+    setError("");
+  };
+
   const handleSubmit = () => {
     if (!form.name.trim()) { setError("Dergi adı gerekli."); return; }
-    if (existingNames.some(n => n.toLowerCase() === form.name.trim().toLowerCase())) { setError("Bu dergi zaten mevcut."); return; }
+    if (existingNames.some(n => n.toLowerCase() === form.name.trim().toLowerCase())) { setError("Bu dergi zaten listende mevcut."); return; }
     if (!form.abbr.trim()) { setError("Kısaltma gerekli."); return; }
     const ifVal = parseFloat(form.if2024);
     if (isNaN(ifVal) || ifVal < 0) { setError("Geçerli bir IF değeri girin."); return; }
@@ -1070,6 +1173,7 @@ function AddJournalForm({ onAdd, onClose, existingNames }) {
       id: `custom_${Date.now()}`,
       color: ["#C1121F", "#0077B6", "#2D6A4F", "#5B2C6F", "#E63946", "#1B4965", "#D35400", "#7D3C98", "#2A9D8F", "#6A040F"][Math.floor(Math.random() * 10)],
       isCustom: true,
+      issn: selectedResult?.issn || "",
     });
   };
 
@@ -1088,98 +1192,212 @@ function AddJournalForm({ onAdd, onClose, existingNames }) {
     }} onClick={onClose}>
       <div style={{
         background: "#ffffff", borderRadius: "16px", padding: "28px 32px",
-        maxWidth: "560px", width: "100%", maxHeight: "85vh", overflowY: "auto",
+        maxWidth: "600px", width: "100%", maxHeight: "85vh", overflowY: "auto",
         boxShadow: "0 20px 60px rgba(0,0,0,0.2)"
       }} onClick={e => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#0f172a", margin: 0 }}>➕ Yeni Dergi Ekle</h2>
+          <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#0f172a", margin: 0 }}>
+            {mode === "search" ? "🔍 Dergi Ara" : mode === "edit" ? "📝 Dergi Bilgilerini Düzenle" : "➕ Manuel Dergi Ekle"}
+          </h2>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8" }}>✕</button>
         </div>
 
         {error && <div style={{ padding: "10px 14px", borderRadius: "8px", background: "#fee2e2", color: "#dc2626", fontSize: "12px", marginBottom: "14px" }}>{error}</div>}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={labelStyle}>Dergi Adı *</label>
-            <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Nature Genetics" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Kısaltma *</label>
-            <input value={form.abbr} onChange={e => set("abbr", e.target.value)} placeholder="Nat Genet" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Impact Factor *</label>
-            <input value={form.if2024} onChange={e => set("if2024", e.target.value)} placeholder="6.5" type="number" step="0.1" min="0" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Quartile</label>
-            <select value={form.quartile} onChange={e => set("quartile", e.target.value)} style={inputStyle}>
-              {["Q1", "Q2", "Q3", "Q4"].map(q => <option key={q} value={q}>{q} — {quartileInfo[q].desc}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Alan</label>
-            <select value={form.field} onChange={e => set("field", e.target.value)} style={inputStyle}>
-              {researchFields.map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </div>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={labelStyle}>Odak / Kapsam</label>
-            <input value={form.focus} onChange={e => set("focus", e.target.value)} placeholder="Klinik genetik, moleküler tanı..." style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Yayıncı</label>
-            <input value={form.publisher} onChange={e => set("publisher", e.target.value)} placeholder="Elsevier" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Yayın Sıklığı</label>
-            <select value={form.frequency} onChange={e => set("frequency", e.target.value)} style={inputStyle}>
-              {["Haftalık", "2 haftada bir", "Aylık", "2 ayda bir", "Sürekli"].map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </div>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={labelStyle}>URL</label>
-            <input value={form.url} onChange={e => set("url", e.target.value)} placeholder="https://..." style={inputStyle} />
-          </div>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={labelStyle}>Strateji Notu</label>
-            <textarea value={form.note} onChange={e => set("note", e.target.value)} placeholder="Bu dergi hakkında notunuz..."
-              style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />
-          </div>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={labelStyle}>Etiketler</label>
-            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
-              {allTags.map(tag => (
-                <button key={tag} onClick={() => toggleFormTag(tag)} style={{
-                  padding: "3px 10px", borderRadius: "6px", fontSize: "11px",
-                  border: "1px solid", borderColor: form.tags.includes(tag) ? "#1e40af" : "#cbd5e1",
-                  background: form.tags.includes(tag) ? "#1e40af" : "#ffffff",
-                  color: form.tags.includes(tag) ? "#ffffff" : "#64748b",
-                  cursor: "pointer", textTransform: "capitalize"
-                }}>{tag}</button>
-              ))}
+        {/* ─── SEARCH MODE ─── */}
+        {mode === "search" && (
+          <>
+            <div style={{ position: "relative", marginBottom: "16px" }}>
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={e => handleSearchInput(e.target.value)}
+                placeholder="Dergi adı yazın... (ör: Nature Genetics, Lancet, EJHG)"
+                style={{ ...inputStyle, paddingRight: "40px", fontSize: "14px", padding: "12px 16px" }}
+              />
+              {searching && (
+                <div style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", fontSize: "14px" }}>
+                  ⏳
+                </div>
+              )}
             </div>
-          </div>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-              <input type="checkbox" checked={form.openAccess} onChange={e => set("openAccess", e.target.checked)} />
-              <span style={{ fontSize: "13px", color: "#334155" }}>Açık Erişim (Open Access)</span>
-            </label>
-          </div>
-        </div>
 
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "16px" }}>
-          <button onClick={onClose} style={{
-            padding: "10px 20px", borderRadius: "8px", border: "1px solid #cbd5e1",
-            background: "#ffffff", color: "#64748b", fontSize: "13px", cursor: "pointer",
-            fontFamily: "'DM Sans', sans-serif"
-          }}>İptal</button>
-          <button onClick={handleSubmit} style={{
-            padding: "10px 20px", borderRadius: "8px", border: "none",
-            background: "#1e40af", color: "#ffffff", fontSize: "13px", cursor: "pointer",
-            fontWeight: 600, fontFamily: "'DM Sans', sans-serif"
-          }}>Dergi Ekle</button>
-        </div>
+            {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
+              <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8", fontSize: "13px" }}>
+                Sonuç bulunamadı. Manuel eklemek için aşağıdaki butonu kullanın.
+              </div>
+            )}
+
+            {searchResults.length > 0 && (
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "8px" }}>
+                  {searchResults.length} dergi bulundu — OpenAlex
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "400px", overflowY: "auto" }}>
+                  {searchResults.map((r, i) => {
+                    const alreadyExists = existingNames.some(n => n.toLowerCase() === r.name.toLowerCase());
+                    return (
+                      <button key={r.openAlexId || i}
+                        onClick={() => !alreadyExists && selectSearchResult(r)}
+                        disabled={alreadyExists}
+                        style={{
+                          padding: "12px 16px", borderRadius: "10px", border: "1px solid #e2e8f0",
+                          background: alreadyExists ? "#f8fafc" : "#ffffff", cursor: alreadyExists ? "not-allowed" : "pointer",
+                          textAlign: "left", fontFamily: "'DM Sans', sans-serif",
+                          transition: "all 0.15s", opacity: alreadyExists ? 0.5 : 1,
+                          display: "flex", gap: "12px", alignItems: "center"
+                        }}
+                        onMouseEnter={e => { if (!alreadyExists) e.currentTarget.style.borderColor = "#93c5fd"; }}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = "#e2e8f0"}
+                      >
+                        <div style={{
+                          width: "40px", height: "40px", borderRadius: "10px", flexShrink: 0,
+                          background: `${quartileInfo[r.estQuartile].bg}15`,
+                          border: `1px solid ${quartileInfo[r.estQuartile].bg}30`,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: "11px", fontWeight: 700, color: quartileInfo[r.estQuartile].bg
+                        }}>{r.estQuartile}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                            {r.name}
+                            {r.isOA && <span style={{ fontSize: "9px", padding: "1px 6px", borderRadius: "4px", background: "#dcfce7", color: "#166534", fontWeight: 600 }}>OA</span>}
+                            {alreadyExists && <span style={{ fontSize: "9px", padding: "1px 6px", borderRadius: "4px", background: "#fee2e2", color: "#dc2626", fontWeight: 600 }}>Mevcut</span>}
+                          </div>
+                          <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
+                            {r.publisher}{r.publisher && " · "}h-index: {r.hIndex} · {r.worksCount.toLocaleString()} makale
+                          </div>
+                          {r.topTopics.length > 0 && (
+                            <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "2px" }}>
+                              {r.topTopics.slice(0, 3).join(", ")}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          <div style={{ fontSize: "16px", fontWeight: 700, color: quartileInfo[r.estQuartile].bg }}>
+                            {r.approxIF > 0 ? r.approxIF : "—"}
+                          </div>
+                          <div style={{ fontSize: "9px", color: "#94a3b8" }}>~IF</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "14px", display: "flex", justifyContent: "center" }}>
+              <button onClick={() => setMode("manual")} style={{
+                padding: "8px 18px", borderRadius: "8px", border: "1px solid #cbd5e1",
+                background: "#ffffff", color: "#64748b", fontSize: "12px", cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif"
+              }}>
+                ✏️ Manuel olarak ekle
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ─── EDIT / MANUAL MODE ─── */}
+        {(mode === "edit" || mode === "manual") && (
+          <>
+            {mode === "edit" && selectedResult && (
+              <div style={{
+                padding: "10px 14px", borderRadius: "8px", background: "#eff6ff",
+                border: "1px solid #bfdbfe", fontSize: "12px", color: "#1e40af", marginBottom: "14px",
+                display: "flex", alignItems: "center", gap: "8px"
+              }}>
+                <span>🔗</span> OpenAlex'ten alındı — bilgileri düzenleyip ekleyebilirsiniz
+                <button onClick={() => { setMode("search"); setSelectedResult(null); }}
+                  style={{ marginLeft: "auto", background: "none", border: "none", color: "#1e40af", cursor: "pointer", fontSize: "12px", textDecoration: "underline" }}>
+                  Farklı dergi ara
+                </button>
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Dergi Adı *</label>
+                <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Nature Genetics" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Kısaltma *</label>
+                <input value={form.abbr} onChange={e => set("abbr", e.target.value)} placeholder="Nat Genet" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Impact Factor *</label>
+                <input value={form.if2024} onChange={e => set("if2024", e.target.value)} placeholder="6.5" type="number" step="0.1" min="0" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Quartile</label>
+                <select value={form.quartile} onChange={e => set("quartile", e.target.value)} style={inputStyle}>
+                  {["Q1", "Q2", "Q3", "Q4"].map(q => <option key={q} value={q}>{q} — {quartileInfo[q].desc}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Alan</label>
+                <select value={form.field} onChange={e => set("field", e.target.value)} style={inputStyle}>
+                  {researchFields.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Odak / Kapsam</label>
+                <input value={form.focus} onChange={e => set("focus", e.target.value)} placeholder="Klinik genetik, moleküler tanı..." style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Yayıncı</label>
+                <input value={form.publisher} onChange={e => set("publisher", e.target.value)} placeholder="Elsevier" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>Yayın Sıklığı</label>
+                <select value={form.frequency} onChange={e => set("frequency", e.target.value)} style={inputStyle}>
+                  {["Haftalık", "2 haftada bir", "Aylık", "2 ayda bir", "Sürekli"].map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>URL</label>
+                <input value={form.url} onChange={e => set("url", e.target.value)} placeholder="https://..." style={inputStyle} />
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Strateji Notu</label>
+                <textarea value={form.note} onChange={e => set("note", e.target.value)} placeholder="Bu dergi hakkında notunuz..."
+                  style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>Etiketler</label>
+                <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                  {allTags.map(tag => (
+                    <button key={tag} onClick={() => toggleFormTag(tag)} style={{
+                      padding: "3px 10px", borderRadius: "6px", fontSize: "11px",
+                      border: "1px solid", borderColor: form.tags.includes(tag) ? "#1e40af" : "#cbd5e1",
+                      background: form.tags.includes(tag) ? "#1e40af" : "#ffffff",
+                      color: form.tags.includes(tag) ? "#ffffff" : "#64748b",
+                      cursor: "pointer", textTransform: "capitalize"
+                    }}>{tag}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                  <input type="checkbox" checked={form.openAccess} onChange={e => set("openAccess", e.target.checked)} />
+                  <span style={{ fontSize: "13px", color: "#334155" }}>Açık Erişim (Open Access)</span>
+                </label>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "16px" }}>
+              <button onClick={() => { setMode("search"); setError(""); }} style={{
+                padding: "10px 20px", borderRadius: "8px", border: "1px solid #cbd5e1",
+                background: "#ffffff", color: "#64748b", fontSize: "13px", cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif"
+              }}>← Geri</button>
+              <button onClick={handleSubmit} style={{
+                padding: "10px 20px", borderRadius: "8px", border: "none",
+                background: "#1e40af", color: "#ffffff", fontSize: "13px", cursor: "pointer",
+                fontWeight: 600, fontFamily: "'DM Sans', sans-serif"
+              }}>Dergi Ekle</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
