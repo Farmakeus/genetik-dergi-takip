@@ -579,9 +579,507 @@ function ArticleNotes({ articleKey, readingList, setReadingList }) {
 }
 
 // ──────────────────────────────────────────────
+// ADD TO LIBRARY BUTTON
+// ──────────────────────────────────────────────
+function AddToLibraryButton({ artKey, artData, library, addToLibrary, folders }) {
+  const [open, setOpen] = useState(false);
+  const inLibrary = !!library[artKey];
+
+  return (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      <button
+        onClick={e => { e.stopPropagation(); if (inLibrary) { setOpen(!open); } else { addToLibrary(artData, null); } }}
+        style={{
+          fontSize: "11px", padding: "4px 10px", borderRadius: "8px",
+          border: inLibrary ? "1px solid #22C55E" : "1px solid #cbd5e1",
+          background: inLibrary ? "#22C55E15" : "#ffffff",
+          color: inLibrary ? "#22C55E" : "#64748b",
+          cursor: "pointer", fontWeight: 500, fontFamily: "'DM Sans', sans-serif",
+          display: "flex", alignItems: "center", gap: "4px", transition: "all 0.15s"
+        }}
+      >
+        {inLibrary ? "✓ Kütüphanede" : "📥 Kaydet"}
+        {inLibrary && <span style={{ fontSize: "8px" }}>▾</span>}
+      </button>
+      {open && inLibrary && (
+        <div style={{
+          position: "absolute", top: "100%", left: 0, marginTop: "4px",
+          background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100, minWidth: "200px", overflow: "hidden"
+        }} onClick={e => e.stopPropagation()}>
+          <div style={{ padding: "8px 14px", borderBottom: "1px solid #f1f5f9", fontSize: "11px", color: "#94a3b8", fontWeight: 600 }}>
+            KLASÖRE EKLE
+          </div>
+          {Object.entries(folders).map(([fid, folder]) => {
+            const isIn = (library[artKey]?.folders || []).includes(fid);
+            return (
+              <button key={fid}
+                onClick={e => { e.stopPropagation(); addToLibrary(artData, isIn ? null : fid); if (isIn) { /* toggle off - handled by parent */ } }}
+                style={{
+                  display: "flex", alignItems: "center", gap: "8px",
+                  width: "100%", padding: "8px 14px", border: "none",
+                  background: isIn ? `${folder.color}10` : "transparent",
+                  color: isIn ? folder.color : "#334155",
+                  fontSize: "12px", cursor: "pointer", textAlign: "left",
+                  fontFamily: "'DM Sans', sans-serif"
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = isIn ? `${folder.color}10` : "#f8fafc"}
+                onMouseLeave={e => e.currentTarget.style.background = isIn ? `${folder.color}10` : "transparent"}
+              >
+                <span>{folder.icon}</span>
+                <span>{folder.name}</span>
+                {isIn && <span style={{ marginLeft: "auto" }}>✓</span>}
+              </button>
+            );
+          })}
+          <div style={{ borderTop: "1px solid #f1f5f9" }}>
+            <button onClick={e => { e.stopPropagation(); setOpen(false); }}
+              style={{
+                width: "100%", padding: "8px 14px", border: "none",
+                background: "transparent", color: "#94a3b8",
+                fontSize: "11px", cursor: "pointer", textAlign: "center",
+                fontFamily: "'DM Sans', sans-serif"
+              }}>Kapat</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// LIBRARY TAB COMPONENT
+// ──────────────────────────────────────────────
+function LibraryTab({ library, folders, updateLibraryNotes, removeFromLibrary, toggleArticleFolder, addToLibrary, addFolder, deleteFolder, renameFolder }) {
+  const [activeFolder, setActiveFolder] = useState("all"); // "all" | folderId
+  const [search, setSearch] = useState("");
+  const [showAddArticle, setShowAddArticle] = useState(false);
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [editingNoteKey, setEditingNoteKey] = useState(null);
+  const [expandedKey, setExpandedKey] = useState(null);
+  const [editingFolderId, setEditingFolderId] = useState(null);
+  const [editFolderName, setEditFolderName] = useState("");
+
+  // Manual add form
+  const [manualForm, setManualForm] = useState({ title: "", authors: "", year: new Date().getFullYear(), doi: "", journalAbbr: "", notes: "" });
+
+  const FOLDER_ICONS = ["📂", "❤️", "🎓", "🔬", "📋", "⭐", "🧬", "💡", "📊", "🏥", "📖", "🔖"];
+  const FOLDER_COLORS = ["#3B82F6", "#EF4444", "#8B5CF6", "#22C55E", "#F59E0B", "#EC4899", "#06B6D4", "#F97316"];
+  const [newFolderIcon, setNewFolderIcon] = useState("📂");
+  const [newFolderColor, setNewFolderColor] = useState("#3B82F6");
+
+  // Filter articles
+  const filteredArticles = useMemo(() => {
+    return Object.entries(library)
+      .filter(([, art]) => {
+        if (activeFolder !== "all" && !(art.folders || []).includes(activeFolder)) return false;
+        if (search) {
+          const s = search.toLowerCase();
+          return (art.title || "").toLowerCase().includes(s) || (art.authors || "").toLowerCase().includes(s) || (art.notes || "").toLowerCase().includes(s) || (art.journalAbbr || "").toLowerCase().includes(s);
+        }
+        return true;
+      })
+      .sort((a, b) => (b[1].updatedAt || b[1].addedAt || 0) - (a[1].updatedAt || a[1].addedAt || 0));
+  }, [library, activeFolder, search]);
+
+  const handleAddManual = () => {
+    if (!manualForm.title.trim()) return;
+    addToLibrary({
+      title: manualForm.title.trim(),
+      authors: manualForm.authors.trim(),
+      year: parseInt(manualForm.year) || new Date().getFullYear(),
+      doi: manualForm.doi.trim(),
+      journalAbbr: manualForm.journalAbbr.trim(),
+      notes: manualForm.notes.trim(),
+    }, activeFolder !== "all" ? activeFolder : null);
+    setManualForm({ title: "", authors: "", year: new Date().getFullYear(), doi: "", journalAbbr: "", notes: "" });
+    setShowAddArticle(false);
+  };
+
+  const handleCreateFolder = () => {
+    if (!newFolderName.trim()) return;
+    addFolder(newFolderName.trim(), newFolderColor, newFolderIcon);
+    setNewFolderName("");
+    setNewFolderIcon("📂");
+    setNewFolderColor("#3B82F6");
+    setShowNewFolder(false);
+  };
+
+  const totalCount = Object.keys(library).length;
+
+  return (
+    <div>
+      {/* Library header stats */}
+      <div style={{
+        display: "flex", gap: "12px", marginBottom: "20px", flexWrap: "wrap"
+      }}>
+        <div style={{
+          flex: "1 1 120px", padding: "16px 20px", borderRadius: "12px",
+          background: "#ffffff", border: "1px solid #e2e8f0", textAlign: "center"
+        }}>
+          <div style={{ fontSize: "28px", fontWeight: 700, color: "#1e40af" }}>{totalCount}</div>
+          <div style={{ fontSize: "12px", color: "#64748b" }}>Toplam Makale</div>
+        </div>
+        <div style={{
+          flex: "1 1 120px", padding: "16px 20px", borderRadius: "12px",
+          background: "#ffffff", border: "1px solid #e2e8f0", textAlign: "center"
+        }}>
+          <div style={{ fontSize: "28px", fontWeight: 700, color: "#8B5CF6" }}>{Object.keys(folders).length}</div>
+          <div style={{ fontSize: "12px", color: "#64748b" }}>Klasör</div>
+        </div>
+        <div style={{
+          flex: "1 1 120px", padding: "16px 20px", borderRadius: "12px",
+          background: "#ffffff", border: "1px solid #e2e8f0", textAlign: "center"
+        }}>
+          <div style={{ fontSize: "28px", fontWeight: 700, color: "#22C55E" }}>{Object.values(library).filter(a => a.notes).length}</div>
+          <div style={{ fontSize: "12px", color: "#64748b" }}>Notlu Makale</div>
+        </div>
+      </div>
+
+      {/* Folders sidebar + content */}
+      <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
+        {/* Folder sidebar */}
+        <div style={{
+          width: "220px", flexShrink: 0, background: "#ffffff",
+          borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden"
+        }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", fontSize: "12px", fontWeight: 600, color: "#334155" }}>
+            📁 Klasörler
+          </div>
+          {/* All articles */}
+          <button onClick={() => setActiveFolder("all")} style={{
+            width: "100%", padding: "10px 16px", border: "none", textAlign: "left",
+            background: activeFolder === "all" ? "#eff6ff" : "transparent",
+            color: activeFolder === "all" ? "#1e40af" : "#475569",
+            fontSize: "13px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+            borderLeft: activeFolder === "all" ? "3px solid #1e40af" : "3px solid transparent",
+            display: "flex", alignItems: "center", gap: "8px", fontWeight: activeFolder === "all" ? 600 : 400
+          }}>
+            📚 Tüm Makaleler
+            <span style={{ marginLeft: "auto", fontSize: "11px", color: "#94a3b8" }}>{totalCount}</span>
+          </button>
+
+          {/* Custom folders */}
+          {Object.entries(folders).map(([fid, folder]) => {
+            const count = Object.values(library).filter(a => (a.folders || []).includes(fid)).length;
+            const isEditing = editingFolderId === fid;
+            return (
+              <div key={fid} style={{
+                display: "flex", alignItems: "center",
+                background: activeFolder === fid ? `${folder.color}10` : "transparent",
+                borderLeft: activeFolder === fid ? `3px solid ${folder.color}` : "3px solid transparent",
+              }}>
+                {isEditing ? (
+                  <div style={{ flex: 1, padding: "6px 10px", display: "flex", gap: "4px" }}>
+                    <input value={editFolderName} onChange={e => setEditFolderName(e.target.value)}
+                      autoFocus onKeyDown={e => { if (e.key === "Enter") { renameFolder(fid, editFolderName); setEditingFolderId(null); } }}
+                      style={{ flex: 1, padding: "4px 8px", borderRadius: "4px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+                    />
+                    <button onClick={() => { renameFolder(fid, editFolderName); setEditingFolderId(null); }}
+                      style={{ padding: "4px 8px", borderRadius: "4px", border: "none", background: "#1e40af", color: "#fff", fontSize: "10px", cursor: "pointer" }}>✓</button>
+                  </div>
+                ) : (
+                  <>
+                    <button onClick={() => setActiveFolder(fid)} style={{
+                      flex: 1, padding: "10px 16px", border: "none", textAlign: "left",
+                      background: "transparent",
+                      color: activeFolder === fid ? folder.color : "#475569",
+                      fontSize: "13px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                      display: "flex", alignItems: "center", gap: "8px",
+                      fontWeight: activeFolder === fid ? 600 : 400
+                    }}>
+                      {folder.icon} {folder.name}
+                      <span style={{ marginLeft: "auto", fontSize: "11px", color: "#94a3b8" }}>{count}</span>
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); setEditingFolderId(fid); setEditFolderName(folder.name); }}
+                      style={{ padding: "4px", background: "none", border: "none", color: "#cbd5e1", cursor: "pointer", fontSize: "10px", marginRight: "4px" }}
+                      onMouseEnter={e => e.currentTarget.style.color = "#64748b"}
+                      onMouseLeave={e => e.currentTarget.style.color = "#cbd5e1"}
+                    >✏️</button>
+                    <button onClick={e => { e.stopPropagation(); if (confirm(`"${folder.name}" klasörü silinsin mi?`)) deleteFolder(fid); }}
+                      style={{ padding: "4px", background: "none", border: "none", color: "#cbd5e1", cursor: "pointer", fontSize: "10px", marginRight: "8px" }}
+                      onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+                      onMouseLeave={e => e.currentTarget.style.color = "#cbd5e1"}
+                    >🗑️</button>
+                  </>
+                )}
+              </div>
+            );
+          })}
+
+          {/* New folder */}
+          {showNewFolder ? (
+            <div style={{ padding: "10px 14px", borderTop: "1px solid #f1f5f9" }}>
+              <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+                autoFocus placeholder="Klasör adı..." onKeyDown={e => { if (e.key === "Enter") handleCreateFolder(); }}
+                style={{ width: "100%", padding: "6px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "12px", outline: "none", fontFamily: "'DM Sans', sans-serif", marginBottom: "8px", boxSizing: "border-box" }}
+              />
+              <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "8px" }}>
+                {FOLDER_ICONS.map(icon => (
+                  <button key={icon} onClick={() => setNewFolderIcon(icon)} style={{
+                    width: "28px", height: "28px", borderRadius: "6px", border: newFolderIcon === icon ? "2px solid #1e40af" : "1px solid #e2e8f0",
+                    background: newFolderIcon === icon ? "#eff6ff" : "#fff", cursor: "pointer", fontSize: "14px",
+                    display: "flex", alignItems: "center", justifyContent: "center"
+                  }}>{icon}</button>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "8px" }}>
+                {FOLDER_COLORS.map(c => (
+                  <button key={c} onClick={() => setNewFolderColor(c)} style={{
+                    width: "22px", height: "22px", borderRadius: "50%", border: newFolderColor === c ? "2px solid #0f172a" : "2px solid transparent",
+                    background: c, cursor: "pointer"
+                  }} />
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <button onClick={handleCreateFolder} style={{ flex: 1, padding: "6px", borderRadius: "6px", border: "none", background: "#1e40af", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>Oluştur</button>
+                <button onClick={() => setShowNewFolder(false)} style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", background: "#fff", color: "#64748b", fontSize: "11px", cursor: "pointer" }}>İptal</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowNewFolder(true)} style={{
+              width: "100%", padding: "10px 16px", border: "none", borderTop: "1px solid #f1f5f9",
+              background: "transparent", color: "#94a3b8", fontSize: "12px", cursor: "pointer",
+              fontFamily: "'DM Sans', sans-serif", textAlign: "left",
+              display: "flex", alignItems: "center", gap: "6px"
+            }}>
+              ➕ Yeni Klasör
+            </button>
+          )}
+        </div>
+
+        {/* Article list */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Search + add */}
+          <div style={{ display: "flex", gap: "10px", marginBottom: "16px" }}>
+            <input type="text" placeholder="Makale ara (başlık, yazar, not)..." value={search} onChange={e => setSearch(e.target.value)}
+              style={{
+                flex: 1, padding: "10px 16px", borderRadius: "10px",
+                border: "1px solid #cbd5e1", background: "#ffffff",
+                color: "#1e293b", fontSize: "13px", outline: "none", fontFamily: "'DM Sans', sans-serif"
+              }}
+            />
+            <button onClick={() => setShowAddArticle(true)} style={{
+              padding: "10px 18px", borderRadius: "10px", border: "none",
+              background: "#1e40af", color: "#ffffff", fontSize: "13px",
+              fontWeight: 500, cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+              whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "6px"
+            }}>
+              ➕ Manuel Ekle
+            </button>
+          </div>
+
+          {/* Manual add form */}
+          {showAddArticle && (
+            <div style={{
+              padding: "20px", borderRadius: "12px", background: "#ffffff",
+              border: "1px solid #e2e8f0", marginBottom: "16px"
+            }}>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "#0f172a", marginBottom: "14px" }}>
+                📝 Manuel Makale Ekle
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <input value={manualForm.title} onChange={e => setManualForm(p => ({ ...p, title: e.target.value }))}
+                    placeholder="Makale başlığı *" style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", outline: "none", fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box" }} />
+                </div>
+                <input value={manualForm.authors} onChange={e => setManualForm(p => ({ ...p, authors: e.target.value }))}
+                  placeholder="Yazarlar" style={{ padding: "10px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", outline: "none", fontFamily: "'DM Sans', sans-serif" }} />
+                <input value={manualForm.journalAbbr} onChange={e => setManualForm(p => ({ ...p, journalAbbr: e.target.value }))}
+                  placeholder="Dergi (ör: Nat Genet)" style={{ padding: "10px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", outline: "none", fontFamily: "'DM Sans', sans-serif" }} />
+                <input value={manualForm.year} onChange={e => setManualForm(p => ({ ...p, year: e.target.value }))}
+                  placeholder="Yıl" type="number" style={{ padding: "10px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", outline: "none", fontFamily: "'DM Sans', sans-serif" }} />
+                <input value={manualForm.doi} onChange={e => setManualForm(p => ({ ...p, doi: e.target.value }))}
+                  placeholder="DOI (opsiyonel)" style={{ padding: "10px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", outline: "none", fontFamily: "'DM Sans', sans-serif" }} />
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <textarea value={manualForm.notes} onChange={e => setManualForm(p => ({ ...p, notes: e.target.value }))}
+                    placeholder="Not (opsiyonel)" rows={2}
+                    style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", outline: "none", fontFamily: "'DM Sans', sans-serif", resize: "vertical", boxSizing: "border-box" }} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "8px", marginTop: "12px", justifyContent: "flex-end" }}>
+                <button onClick={() => setShowAddArticle(false)} style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#fff", color: "#64748b", fontSize: "12px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>İptal</button>
+                <button onClick={handleAddManual} disabled={!manualForm.title.trim()} style={{
+                  padding: "8px 18px", borderRadius: "8px", border: "none",
+                  background: manualForm.title.trim() ? "#1e40af" : "#cbd5e1", color: "#ffffff",
+                  fontSize: "12px", fontWeight: 500, cursor: manualForm.title.trim() ? "pointer" : "default",
+                  fontFamily: "'DM Sans', sans-serif"
+                }}>Kütüphaneye Ekle</button>
+              </div>
+            </div>
+          )}
+
+          {/* Article cards */}
+          {filteredArticles.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 20px" }}>
+              <div style={{ fontSize: "48px", marginBottom: "16px" }}>{activeFolder === "all" ? "📚" : (folders[activeFolder]?.icon || "📂")}</div>
+              <div style={{ fontSize: "16px", fontWeight: 600, color: "#334155", marginBottom: "8px" }}>
+                {activeFolder === "all" ? "Kütüphaneniz boş" : `"${folders[activeFolder]?.name}" klasörü boş`}
+              </div>
+              <div style={{ fontSize: "13px", color: "#64748b", maxWidth: "400px", margin: "0 auto", lineHeight: 1.6 }}>
+                {activeFolder === "all"
+                  ? "Keşfet sekmesinden dergilerin makalelerini açın ve \"📥 Kaydet\" ile kütüphanenize ekleyin. Veya \"Manuel Ekle\" ile doğrudan makale girin."
+                  : "Bu klasöre makale eklemek için makalelerin klasör menüsünü kullanın."
+                }
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "4px" }}>
+                {filteredArticles.length} makale {search && `· "${search}" araması`}
+              </div>
+              {filteredArticles.map(([key, art]) => {
+                const isExpanded = expandedKey === key;
+                const isEditingNote = editingNoteKey === key;
+                return (
+                  <div key={key} style={{
+                    padding: "16px 20px", borderRadius: "12px", background: "#ffffff",
+                    border: isExpanded ? "1px solid #93c5fd" : "1px solid #e2e8f0",
+                    transition: "all 0.2s", cursor: "pointer"
+                  }}
+                    onClick={() => setExpandedKey(isExpanded ? null : key)}
+                    onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.borderColor = "#cbd5e1"; }}
+                    onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.borderColor = "#e2e8f0"; }}
+                  >
+                    <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: "14px", fontWeight: 600, color: "#0f172a", lineHeight: 1.4, marginBottom: "4px" }}>
+                          {art.title}
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>
+                          {art.authors && <span>{art.authors} · </span>}
+                          {art.journalAbbr && <span style={{ color: "#1e40af", fontWeight: 500 }}>{art.journalAbbr} · </span>}
+                          {art.year}
+                        </div>
+                        {/* Folder badges */}
+                        {(art.folders || []).length > 0 && (
+                          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "6px" }}>
+                            {(art.folders || []).map(fid => {
+                              const folder = folders[fid];
+                              if (!folder) return null;
+                              return (
+                                <span key={fid} style={{
+                                  fontSize: "10px", padding: "2px 8px", borderRadius: "4px",
+                                  background: `${folder.color}15`, color: folder.color,
+                                  border: `1px solid ${folder.color}30`, display: "flex", alignItems: "center", gap: "3px"
+                                }}>
+                                  {folder.icon} {folder.name}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {/* Notes preview */}
+                        {art.notes && !isExpanded && (
+                          <div style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>
+                            📝 {art.notes.slice(0, 80)}{art.notes.length > 80 ? "..." : ""}
+                          </div>
+                        )}
+                      </div>
+                      {/* Actions */}
+                      <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                        {art.doi && (
+                          <a href={art.doi.startsWith("http") ? art.doi : `https://doi.org/${art.doi}`}
+                            target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                            style={{ fontSize: "11px", color: "#64748b", textDecoration: "none", padding: "4px 8px", borderRadius: "4px", background: "#f8fafc", border: "1px solid #e2e8f0" }}
+                            onMouseEnter={e => e.currentTarget.style.color = "#1e40af"} onMouseLeave={e => e.currentTarget.style.color = "#64748b"}>DOI</a>
+                        )}
+                        <button onClick={e => { e.stopPropagation(); removeFromLibrary(key); }}
+                          style={{ fontSize: "11px", color: "#cbd5e1", background: "none", border: "none", cursor: "pointer", padding: "4px" }}
+                          onMouseEnter={e => e.currentTarget.style.color = "#ef4444"} onMouseLeave={e => e.currentTarget.style.color = "#cbd5e1"}>🗑️</button>
+                      </div>
+                    </div>
+
+                    {/* Expanded section */}
+                    {isExpanded && (
+                      <div style={{ marginTop: "12px", borderTop: "1px solid #f1f5f9", paddingTop: "12px" }} onClick={e => e.stopPropagation()}>
+                        {/* Abstract */}
+                        {art.abstract && (
+                          <div style={{
+                            fontSize: "12px", color: "#334155", lineHeight: 1.7,
+                            padding: "10px 12px", borderRadius: "8px",
+                            background: "#f1f5f9", border: "1px solid #e2e8f0",
+                            marginBottom: "10px", whiteSpace: "pre-wrap", maxHeight: "200px", overflowY: "auto"
+                          }}>
+                            {art.abstract}
+                          </div>
+                        )}
+
+                        {/* Notes editor */}
+                        <div style={{ marginBottom: "10px" }}>
+                          <div style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", marginBottom: "4px" }}>📝 NOTLAR</div>
+                          {isEditingNote ? (
+                            <div>
+                              <textarea
+                                autoFocus value={art.notes || ""} rows={4}
+                                onChange={e => updateLibraryNotes(key, e.target.value)}
+                                placeholder="Bu makale hakkında notlarınız..."
+                                style={{
+                                  width: "100%", padding: "10px 12px", borderRadius: "8px",
+                                  border: "1px solid #93c5fd", background: "#f8fafc",
+                                  fontSize: "13px", color: "#334155", resize: "vertical",
+                                  fontFamily: "'DM Sans', sans-serif", outline: "none", boxSizing: "border-box"
+                                }}
+                              />
+                              <button onClick={() => setEditingNoteKey(null)} style={{
+                                marginTop: "6px", padding: "6px 14px", borderRadius: "6px",
+                                border: "none", background: "#1e40af", color: "#fff",
+                                fontSize: "11px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif"
+                              }}>Tamam</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setEditingNoteKey(key)} style={{
+                              width: "100%", padding: "10px 14px", borderRadius: "8px", textAlign: "left",
+                              border: "1px dashed #cbd5e1", background: art.notes ? "#f8fafc" : "transparent",
+                              color: art.notes ? "#334155" : "#94a3b8",
+                              fontSize: "12px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                              lineHeight: 1.6, whiteSpace: "pre-wrap"
+                            }}>
+                              {art.notes || "Not eklemek için tıklayın..."}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Folder assignment */}
+                        <div>
+                          <div style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", marginBottom: "6px" }}>📁 KLASÖRLER</div>
+                          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                            {Object.entries(folders).map(([fid, folder]) => {
+                              const isIn = (art.folders || []).includes(fid);
+                              return (
+                                <button key={fid} onClick={() => toggleArticleFolder(key, fid)} style={{
+                                  padding: "5px 12px", borderRadius: "6px", fontSize: "11px",
+                                  border: isIn ? `1px solid ${folder.color}` : "1px solid #e2e8f0",
+                                  background: isIn ? `${folder.color}15` : "#ffffff",
+                                  color: isIn ? folder.color : "#64748b",
+                                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                                  display: "flex", alignItems: "center", gap: "4px"
+                                }}>
+                                  {folder.icon} {folder.name}
+                                  {isIn && <span>✓</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
 // ARTICLE PANEL
 // ──────────────────────────────────────────────
-function ArticlePanel({ journal, onClose, readingList, setReadingList }) {
+function ArticlePanel({ journal, onClose, readingList, setReadingList, library, addToLibrary, folders }) {
   const [period, setPeriod] = useState("month");
   const [articles, setArticles] = useState({});
   const [loading, setLoading] = useState(false);
@@ -715,6 +1213,13 @@ function ArticlePanel({ journal, onClose, readingList, setReadingList }) {
                         readingList={readingList}
                         setReadingList={setReadingList}
                         artData={{ title: art.title, authors: art.authors, journalAbbr: journal.abbr, doi: art.doi, pmid: art.pmid, year: art.year }}
+                      />
+                      <AddToLibraryButton
+                        artKey={artKey}
+                        artData={{ title: art.title, authors: art.authors, journalAbbr: journal.abbr, doi: art.doi, pmid: art.pmid, year: art.year, abstract: art.abstract, citation: art.citation }}
+                        library={library}
+                        addToLibrary={addToLibrary}
+                        folders={folders}
                       />
                       {art.abstract && (
                         <button
@@ -1438,6 +1943,26 @@ export default function GenetikDergiTakip() {
     try { return JSON.parse(localStorage.getItem("genetik_custom_journals") || "[]"); } catch { return []; }
   });
 
+  // Library: { articleId: { title, authors, year, doi, pmid, abstract, journalAbbr, notes, folders: [...], addedAt, updatedAt } }
+  const [library, setLibrary] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("genetik_library") || "{}"); } catch { return {}; }
+  });
+  // Folders: { folderId: { name, color, icon, createdAt } }
+  const [folders, setFolders] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("genetik_folders") || "null");
+      return saved || {
+        "fav": { name: "Beğendiklerim", color: "#EF4444", icon: "❤️", createdAt: Date.now() },
+        "thesis": { name: "Tezimle İlgili", color: "#8B5CF6", icon: "🎓", createdAt: Date.now() },
+      };
+    } catch {
+      return {
+        "fav": { name: "Beğendiklerim", color: "#EF4444", icon: "❤️", createdAt: Date.now() },
+        "thesis": { name: "Tezimle İlgili", color: "#8B5CF6", icon: "🎓", createdAt: Date.now() },
+      };
+    }
+  });
+
   const [removedJournalIds, setRemovedJournalIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem("genetik_removed_journals") || "[]"); } catch { return []; }
   });
@@ -1464,6 +1989,85 @@ export default function GenetikDergiTakip() {
   useEffect(() => {
     localStorage.setItem("genetik_removed_journals", JSON.stringify(removedJournalIds));
   }, [removedJournalIds]);
+
+  useEffect(() => {
+    localStorage.setItem("genetik_library", JSON.stringify(library));
+  }, [library]);
+
+  useEffect(() => {
+    localStorage.setItem("genetik_folders", JSON.stringify(folders));
+  }, [folders]);
+
+  // Library helper functions
+  const addToLibrary = (artData, folderId) => {
+    const key = artData.doi ? artData.doi.replace(/[./]/g, "_") : artData.pmid ? `pmid_${artData.pmid}` : `manual_${Date.now()}`;
+    setLibrary(prev => {
+      const existing = prev[key] || {};
+      const existingFolders = existing.folders || [];
+      const newFolders = folderId && !existingFolders.includes(folderId) ? [...existingFolders, folderId] : existingFolders;
+      return {
+        ...prev,
+        [key]: {
+          ...existing,
+          ...artData,
+          folders: newFolders,
+          addedAt: existing.addedAt || Date.now(),
+          updatedAt: Date.now(),
+        }
+      };
+    });
+  };
+
+  const removeFromLibrary = (key) => {
+    setLibrary(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const updateLibraryNotes = (key, notes) => {
+    setLibrary(prev => ({
+      ...prev,
+      [key]: { ...prev[key], notes, updatedAt: Date.now() }
+    }));
+  };
+
+  const toggleArticleFolder = (key, folderId) => {
+    setLibrary(prev => {
+      const art = prev[key];
+      if (!art) return prev;
+      const folders = art.folders || [];
+      const newFolders = folders.includes(folderId) ? folders.filter(f => f !== folderId) : [...folders, folderId];
+      return { ...prev, [key]: { ...art, folders: newFolders, updatedAt: Date.now() } };
+    });
+  };
+
+  const addFolder = (name, color, icon) => {
+    const id = `folder_${Date.now()}`;
+    setFolders(prev => ({ ...prev, [id]: { name, color, icon, createdAt: Date.now() } }));
+    return id;
+  };
+
+  const deleteFolder = (id) => {
+    setFolders(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    // Remove folder from all articles
+    setLibrary(prev => {
+      const next = {};
+      Object.entries(prev).forEach(([key, art]) => {
+        next[key] = { ...art, folders: (art.folders || []).filter(f => f !== id) };
+      });
+      return next;
+    });
+  };
+
+  const renameFolder = (id, name) => {
+    setFolders(prev => ({ ...prev, [id]: { ...prev[id], name } }));
+  };
 
   const addJournal = (journal) => {
     setCustomJournals(prev => [...prev, journal]);
@@ -1542,6 +2146,7 @@ export default function GenetikDergiTakip() {
           <div style={{ display: "flex", gap: "4px", marginTop: "16px" }}>
             {[
               { key: "discover", label: "Keşfet", icon: "🔬", count: journals.length },
+              { key: "library", label: "Kütüphanem", icon: "📚", count: Object.keys(library).length || null },
               { key: "wizard", label: "Dergi Wizard", icon: "🧭", count: null },
             ].map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
@@ -1827,6 +2432,9 @@ export default function GenetikDergiTakip() {
                             onClose={() => setArticlePanelId(null)}
                             readingList={readingList}
                             setReadingList={setReadingList}
+                            library={library}
+                            addToLibrary={addToLibrary}
+                            folders={folders}
                           />
                         )}
                       </div>
@@ -1878,6 +2486,18 @@ export default function GenetikDergiTakip() {
               />
             )}
           </>
+        )}
+
+        {/* ═══════ LIBRARY TAB ═══════ */}
+        {activeTab === "library" && (
+          <LibraryTab
+            library={library} folders={folders}
+            updateLibraryNotes={updateLibraryNotes}
+            removeFromLibrary={removeFromLibrary}
+            toggleArticleFolder={toggleArticleFolder}
+            addToLibrary={addToLibrary}
+            addFolder={addFolder} deleteFolder={deleteFolder} renameFolder={renameFolder}
+          />
         )}
 
         {/* ═══════ WIZARD TAB ═══════ */}
