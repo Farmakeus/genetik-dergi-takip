@@ -1,56 +1,48 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import {
-  isConfigured as firebaseConfigured,
-  auth, db, googleProvider,
-  signInWithPopup, signOut, onAuthStateChanged,
-  collection, doc, setDoc, getDoc, getDocs, deleteDoc,
-  query, where, orderBy, limit, onSnapshot,
-  serverTimestamp, updateDoc, increment
-} from "./firebase";
 
 // ──────────────────────────────────────────────
 // JOURNAL DATA
 // ──────────────────────────────────────────────
 const journals = [
   // === Q1 — IF > 6 ===
-  { id: 1, name: "Nature Genetics", abbr: "Nat Genet", if2024: 31.7, quartile: "Q1", frequency: "Aylık", focus: "Genetik ve genomik — temel ve translasyonel", url: "https://www.nature.com/ng/", field: "Genomik", tags: ["temel", "genomik", "translasyonel"], color: "#C1121F", publisher: "Nature Portfolio", note: "En yüksek IF'li genetik dergisi. GWAS, fonksiyonel genomik ve yeni gen keşifleri." },
-  { id: 2, name: "Nature Reviews Genetics", abbr: "Nat Rev Genet", if2024: 39.1, quartile: "Q1", frequency: "Aylık", focus: "Genetik ve genomik alanında kapsamlı derleme makaleleri", url: "https://www.nature.com/nrg/", field: "Genomik", tags: ["temel", "genomik", "derleme"], color: "#9B1B30", publisher: "Nature Portfolio", note: "Alanın en prestijli review dergisi. Yeni kavram ve teknolojilerin kapsamlı değerlendirmesi." },
-  { id: 3, name: "Genome Research", abbr: "Genome Res", if2024: 6.2, quartile: "Q1", frequency: "Aylık", focus: "Genom analizi, fonksiyonel genomik, hesaplamalı biyoloji", url: "https://genome.cshlp.org/", field: "Genomik", tags: ["temel", "genomik", "hesaplamalı"], color: "#5B2C6F", publisher: "Cold Spring Harbor Laboratory Press", note: "Genom düzeyinde analizler, yeni sekanslama teknikleri ve büyük ölçekli veri çalışmaları." },
-  { id: 4, name: "Genome Medicine", abbr: "Genome Med", if2024: 10.4, quartile: "Q1", frequency: "Sürekli", focus: "Klinik genomik, WES/WGS, hassas tıp", url: "https://genomemedicine.biomedcentral.com/", field: "Klinik Genomik", tags: ["genomik", "translasyonel", "hesaplamalı"], color: "#0077B6", publisher: "BMC / Springer Nature", note: "WES/WGS klinik çalışmaları ve biyoinformatik pipeline makaleleri. Open access." },
-  { id: 5, name: "Genome Biology", abbr: "Genome Biol", if2024: 10.1, quartile: "Q1", frequency: "Sürekli", focus: "Genomik, epigenomik, transkriptomik, araç geliştirme", url: "https://genomebiology.biomedcentral.com/", field: "Genomik", tags: ["genomik", "hesaplamalı", "pipeline"], color: "#1A5276", publisher: "BMC / Springer Nature", note: "Yeni biyoinformatik araçlar ve büyük ölçekli -omik çalışmaları. Open access." },
-  { id: 6, name: "American Journal of Human Genetics", abbr: "AJHG", if2024: 8.1, quartile: "Q1", frequency: "Aylık", focus: "İnsan genetiği, genomik, hesaplamalı biyoloji", url: "https://www.cell.com/ajhg/home", field: "İnsan Genetiği", tags: ["temel", "genomik", "hesaplamalı"], color: "#1B4965", publisher: "Cell Press / ASHG", note: "ASHG'nin resmi dergisi. Popülasyon genetiğinden Mendelian hastalıklara kadar geniş kapsam." },
-  { id: 7, name: "Genetics in Medicine", abbr: "GIM", if2024: 6.6, quartile: "Q1", frequency: "Aylık", focus: "Klinik genetik, genetik test, genetik danışmanlık", url: "https://www.gimjournal.org/", field: "Klinik Genetik", tags: ["klinik", "test", "rehber"], color: "#2D6A4F", publisher: "ACMG / Elsevier", note: "ACMG'nin resmi dergisi. Klinik varyant yorumlama rehberleri burada yayımlanır." },
-  { id: 8, name: "Briefings in Bioinformatics", abbr: "Brief Bioinform", if2024: 6.8, quartile: "Q1", frequency: "2 ayda bir", focus: "Biyoinformatik pipeline'lar, araç geliştirme, veri analiz yöntemleri", url: "https://academic.oup.com/bib", field: "Biyoinformatik", tags: ["biyoinformatik", "hesaplamalı", "pipeline"], color: "#E63946", publisher: "Oxford University Press", note: "NGS pipeline karşılaştırma ve review makaleleri için en prestijli adres." },
-  { id: 9, name: "Nucleic Acids Research", abbr: "Nucleic Acids Res", if2024: 14.9, quartile: "Q1", frequency: "Haftalık", focus: "Nükleik asit araştırmaları, veritabanları, biyoinformatik araçlar", url: "https://academic.oup.com/nar", field: "Moleküler Genetik", tags: ["moleküler", "biyoinformatik", "pipeline"], color: "#D4AC0D", publisher: "Oxford University Press", note: "Database ve web-server özel sayıları biyoinformatik araçları için referans kaynağı." },
-  { id: 10, name: "Human Molecular Genetics", abbr: "Hum Mol Genet", if2024: 6.0, quartile: "Q1", frequency: "2 haftada bir", focus: "Moleküler genetik mekanizmalar, hastalık modelleri", url: "https://academic.oup.com/hmg", field: "Moleküler Genetik", tags: ["moleküler", "temel", "fonksiyonel"], color: "#6C3483", publisher: "Oxford University Press", note: "Hastalık mekanizmalarının moleküler düzeyde araştırılması, fare modelleri ve fonksiyonel çalışmalar." },
-  { id: 11, name: "The Pharmacogenomics Journal", abbr: "Pharmacogenomics J", if2024: 6.1, quartile: "Q1", frequency: "2 ayda bir", focus: "Farmakogenomik, ilaç yanıtı, kişiselleştirilmiş tıp", url: "https://www.nature.com/tpj/", field: "Farmakogenetik", tags: ["farmakogenetik", "translasyonel", "klinik"], color: "#117A65", publisher: "Nature Portfolio", note: "İlaç yanıtında genetik varyasyonlar ve kişiselleştirilmiş tedavi stratejileri." },
+  { id: 1, name: "Nature Genetics", abbr: "Nat Genet", if2024: 31.7, quartile: "Q1", frequency: "Aylık", focus: "Genetik ve genomik — temel ve translasyonel", url: "https://www.nature.com/ng/", field: "Genomik", tags: ["temel", "genomik", "translasyonel"], color: "#C1121F", publisher: "Nature Portfolio", note: "En yüksek IF'li genetik dergisi. GWAS, fonksiyonel genomik ve yeni gen keşifleri.", openAccess: false },
+  { id: 2, name: "Nature Reviews Genetics", abbr: "Nat Rev Genet", if2024: 39.1, quartile: "Q1", frequency: "Aylık", focus: "Genetik ve genomik alanında kapsamlı derleme makaleleri", url: "https://www.nature.com/nrg/", field: "Genomik", tags: ["temel", "genomik", "derleme"], color: "#9B1B30", publisher: "Nature Portfolio", note: "Alanın en prestijli review dergisi. Yeni kavram ve teknolojilerin kapsamlı değerlendirmesi.", openAccess: false },
+  { id: 3, name: "Genome Research", abbr: "Genome Res", if2024: 6.2, quartile: "Q1", frequency: "Aylık", focus: "Genom analizi, fonksiyonel genomik, hesaplamalı biyoloji", url: "https://genome.cshlp.org/", field: "Genomik", tags: ["temel", "genomik", "hesaplamalı"], color: "#5B2C6F", publisher: "Cold Spring Harbor Laboratory Press", note: "Genom düzeyinde analizler, yeni sekanslama teknikleri ve büyük ölçekli veri çalışmaları.", openAccess: false },
+  { id: 4, name: "Genome Medicine", abbr: "Genome Med", if2024: 10.4, quartile: "Q1", frequency: "Sürekli", focus: "Klinik genomik, WES/WGS, hassas tıp", url: "https://genomemedicine.biomedcentral.com/", field: "Klinik Genomik", tags: ["genomik", "translasyonel", "hesaplamalı"], color: "#0077B6", publisher: "BMC / Springer Nature", note: "WES/WGS klinik çalışmaları ve biyoinformatik pipeline makaleleri. Open access.", openAccess: true },
+  { id: 5, name: "Genome Biology", abbr: "Genome Biol", if2024: 10.1, quartile: "Q1", frequency: "Sürekli", focus: "Genomik, epigenomik, transkriptomik, araç geliştirme", url: "https://genomebiology.biomedcentral.com/", field: "Genomik", tags: ["genomik", "hesaplamalı", "pipeline"], color: "#1A5276", publisher: "BMC / Springer Nature", note: "Yeni biyoinformatik araçlar ve büyük ölçekli -omik çalışmaları. Open access.", openAccess: true },
+  { id: 6, name: "American Journal of Human Genetics", abbr: "AJHG", if2024: 8.1, quartile: "Q1", frequency: "Aylık", focus: "İnsan genetiği, genomik, hesaplamalı biyoloji", url: "https://www.cell.com/ajhg/home", field: "İnsan Genetiği", tags: ["temel", "genomik", "hesaplamalı"], color: "#1B4965", publisher: "Cell Press / ASHG", note: "ASHG'nin resmi dergisi. Popülasyon genetiğinden Mendelian hastalıklara kadar geniş kapsam.", openAccess: false },
+  { id: 7, name: "Genetics in Medicine", abbr: "GIM", if2024: 6.6, quartile: "Q1", frequency: "Aylık", focus: "Klinik genetik, genetik test, genetik danışmanlık", url: "https://www.gimjournal.org/", field: "Klinik Genetik", tags: ["klinik", "test", "rehber"], color: "#2D6A4F", publisher: "ACMG / Elsevier", note: "ACMG'nin resmi dergisi. Klinik varyant yorumlama rehberleri burada yayımlanır.", openAccess: false },
+  { id: 8, name: "Briefings in Bioinformatics", abbr: "Brief Bioinform", if2024: 6.8, quartile: "Q1", frequency: "2 ayda bir", focus: "Biyoinformatik pipeline'lar, araç geliştirme, veri analiz yöntemleri", url: "https://academic.oup.com/bib", field: "Biyoinformatik", tags: ["biyoinformatik", "hesaplamalı", "pipeline"], color: "#E63946", publisher: "Oxford University Press", note: "NGS pipeline karşılaştırma ve review makaleleri için en prestijli adres.", openAccess: false },
+  { id: 9, name: "Nucleic Acids Research", abbr: "Nucleic Acids Res", if2024: 14.9, quartile: "Q1", frequency: "Haftalık", focus: "Nükleik asit araştırmaları, veritabanları, biyoinformatik araçlar", url: "https://academic.oup.com/nar", field: "Moleküler Genetik", tags: ["moleküler", "biyoinformatik", "pipeline"], color: "#D4AC0D", publisher: "Oxford University Press", note: "Database ve web-server özel sayıları biyoinformatik araçları için referans kaynağı.", openAccess: true },
+  { id: 10, name: "Human Molecular Genetics", abbr: "Hum Mol Genet", if2024: 6.0, quartile: "Q1", frequency: "2 haftada bir", focus: "Moleküler genetik mekanizmalar, hastalık modelleri", url: "https://academic.oup.com/hmg", field: "Moleküler Genetik", tags: ["moleküler", "temel", "fonksiyonel"], color: "#6C3483", publisher: "Oxford University Press", note: "Hastalık mekanizmalarının moleküler düzeyde araştırılması, fare modelleri ve fonksiyonel çalışmalar.", openAccess: false },
+  { id: 11, name: "The Pharmacogenomics Journal", abbr: "Pharmacogenomics J", if2024: 6.1, quartile: "Q1", frequency: "2 ayda bir", focus: "Farmakogenomik, ilaç yanıtı, kişiselleştirilmiş tıp", url: "https://www.nature.com/tpj/", field: "Farmakogenetik", tags: ["farmakogenetik", "translasyonel", "klinik"], color: "#117A65", publisher: "Nature Portfolio", note: "İlaç yanıtında genetik varyasyonlar ve kişiselleştirilmiş tedavi stratejileri.", openAccess: false },
   // === Q2 — IF 3–6 ===
-  { id: 12, name: "European Journal of Human Genetics", abbr: "EJHG", if2024: 3.7, quartile: "Q2", frequency: "Aylık", focus: "Klinik genetik, sitogenetik, moleküler genetik", url: "https://www.nature.com/ejhg/", field: "Klinik Genetik", tags: ["klinik", "moleküler", "sitogenetik"], color: "#003566", publisher: "ESHG / Nature Portfolio", note: "Avrupa perspektifli klinik genetik. Türk genetikçilerin sık yayın yaptığı dergi." },
-  { id: 13, name: "Human Mutation / Human Genetics", abbr: "Hum Genet", if2024: 3.8, quartile: "Q2", frequency: "Aylık", focus: "Mutasyon analizi, varyant fonksiyonel çalışmaları", url: "https://link.springer.com/journal/439", field: "Moleküler Genetik", tags: ["moleküler", "varyant", "fonksiyonel"], color: "#7B2D8E", publisher: "Springer", note: "Varyant-fonksiyon ilişkisi ve in silico analiz çalışmaları için önemli." },
-  { id: 14, name: "Bioinformatics", abbr: "Bioinformatics", if2024: 4.4, quartile: "Q2", frequency: "2 haftada bir", focus: "Algoritma geliştirme, varyant çağırma, yazılım araçları", url: "https://academic.oup.com/bioinformatics", field: "Biyoinformatik", tags: ["biyoinformatik", "hesaplamalı", "pipeline", "varyant"], color: "#2A9D8F", publisher: "Oxford University Press", note: "GATK, ACMG otomasyon araçları, varyant sınıflandırma algoritmaları burada yayımlanır." },
-  { id: 15, name: "Human Genomics", abbr: "Hum Genomics", if2024: 3.8, quartile: "Q2", frequency: "Sürekli", focus: "Klinik biyoinformatik, WES/WGS analiz, varyant yorumlama", url: "https://humgenomics.biomedcentral.com/", field: "Klinik Genomik", tags: ["biyoinformatik", "genomik", "varyant", "klinik"], color: "#457B9D", publisher: "BMC / Springer Nature", note: "WES/WGS klinik biyoinformatik çalışmaları ve varyant filtreleme stratejileri. Open access." },
-  { id: 16, name: "Clinical Genetics", abbr: "Clin Genet", if2024: 3.2, quartile: "Q2", frequency: "Aylık", focus: "Klinik genetik, moleküler tanı, danışmanlık", url: "https://onlinelibrary.wiley.com/journal/13990004", field: "Klinik Genetik", tags: ["klinik", "moleküler", "test"], color: "#264653", publisher: "Wiley", note: "Kısa vaka raporları (Letter) formatı rezidanlar için hızlı yayın imkanı sunar." },
-  { id: 17, name: "Orphanet Journal of Rare Diseases", abbr: "OJRD", if2024: 3.4, quartile: "Q2", frequency: "Sürekli", focus: "Nadir hastalıklar, epidemiyoloji, tanı yolculuğu", url: "https://ojrd.biomedcentral.com/", field: "Nadir Hastalıklar", tags: ["klinik", "nadir", "translasyonel"], color: "#588157", publisher: "BMC / Springer Nature", note: "Nadir hastalık kohortları ve tanı gecikme süreleri analizleri. Open access." },
-  { id: 18, name: "Journal of Medical Genetics", abbr: "J Med Genet", if2024: 4.0, quartile: "Q2", frequency: "Aylık", focus: "Tıbbi genetik, genotip-fenotip korelasyonları", url: "https://jmg.bmj.com/", field: "Klinik Genetik", tags: ["klinik", "moleküler", "vaka"], color: "#1F618D", publisher: "BMJ", note: "Genotip-fenotip korelasyon çalışmaları ve yeni sendrom tanımlamaları." },
-  { id: 19, name: "Pharmacogenomics", abbr: "Pharmacogenomics", if2024: 3.1, quartile: "Q2", frequency: "Aylık", focus: "Farmakogenomik uygulamalar, ilaç metabolizması genetiği", url: "https://www.future-medicine.com/journal/pgs", field: "Farmakogenetik", tags: ["farmakogenetik", "klinik", "translasyonel"], color: "#148F77", publisher: "Future Medicine", note: "CYP enzim polimorfizmleri, ilaç doz ayarlama ve farmakogenetik klinik uygulamalar." },
-  { id: 20, name: "BMC Genomics", abbr: "BMC Genomics", if2024: 3.5, quartile: "Q2", frequency: "Sürekli", focus: "Genomik, transkriptomik, epigenomik, metagenomik", url: "https://bmcgenomics.biomedcentral.com/", field: "Genomik", tags: ["genomik", "hesaplamalı", "temel"], color: "#2E86C1", publisher: "BMC / Springer Nature", note: "Geniş kapsamlı genomik çalışmalar. Erişilebilir IF ve open access." },
-  { id: 21, name: "Molecular Genetics and Metabolism", abbr: "Mol Genet Metab", if2024: 3.6, quartile: "Q2", frequency: "Aylık", focus: "Kalıtsal metabolizma hastalıkları, enzim eksiklikleri, tedavi", url: "https://www.sciencedirect.com/journal/molecular-genetics-and-metabolism", field: "Metabolik Genetik", tags: ["metabolik", "klinik", "translasyonel"], color: "#D35400", publisher: "Elsevier", note: "IEM (Inborn Errors of Metabolism) için temel dergi. Yenidoğan tarama ve tedavi çalışmaları." },
-  { id: 22, name: "Cytogenetic and Genome Research", abbr: "Cytogenet Genome Res", if2024: 3.1, quartile: "Q2", frequency: "2 ayda bir", focus: "Sitogenetik, kromozom yapısı, genom organizasyonu", url: "https://karger.com/cgr", field: "Sitogenetik", tags: ["sitogenetik", "temel", "genomik"], color: "#7D3C98", publisher: "Karger", note: "Klasik sitogenetik ve modern moleküler sitogenetik (FISH, array CGH) çalışmaları." },
-  { id: 23, name: "Genes", abbr: "Genes", if2024: 3.5, quartile: "Q2", frequency: "Sürekli", focus: "Genetik, genomik, gen ifadesi, epigenetik", url: "https://www.mdpi.com/journal/genes", field: "Genomik", tags: ["temel", "genomik", "moleküler"], color: "#27AE60", publisher: "MDPI", note: "Geniş kapsamlı genetik/genomik çalışmalar. Hızlı hakem süreci ve open access." },
+  { id: 12, name: "European Journal of Human Genetics", abbr: "EJHG", if2024: 3.7, quartile: "Q2", frequency: "Aylık", focus: "Klinik genetik, sitogenetik, moleküler genetik", url: "https://www.nature.com/ejhg/", field: "Klinik Genetik", tags: ["klinik", "moleküler", "sitogenetik"], color: "#003566", publisher: "ESHG / Nature Portfolio", note: "Avrupa perspektifli klinik genetik. Türk genetikçilerin sık yayın yaptığı dergi.", openAccess: false },
+  { id: 13, name: "Human Mutation / Human Genetics", abbr: "Hum Genet", if2024: 3.8, quartile: "Q2", frequency: "Aylık", focus: "Mutasyon analizi, varyant fonksiyonel çalışmaları", url: "https://link.springer.com/journal/439", field: "Moleküler Genetik", tags: ["moleküler", "varyant", "fonksiyonel"], color: "#7B2D8E", publisher: "Springer", note: "Varyant-fonksiyon ilişkisi ve in silico analiz çalışmaları için önemli.", openAccess: false },
+  { id: 14, name: "Bioinformatics", abbr: "Bioinformatics", if2024: 4.4, quartile: "Q2", frequency: "2 haftada bir", focus: "Algoritma geliştirme, varyant çağırma, yazılım araçları", url: "https://academic.oup.com/bioinformatics", field: "Biyoinformatik", tags: ["biyoinformatik", "hesaplamalı", "pipeline", "varyant"], color: "#2A9D8F", publisher: "Oxford University Press", note: "GATK, ACMG otomasyon araçları, varyant sınıflandırma algoritmaları burada yayımlanır.", openAccess: false },
+  { id: 15, name: "Human Genomics", abbr: "Hum Genomics", if2024: 3.8, quartile: "Q2", frequency: "Sürekli", focus: "Klinik biyoinformatik, WES/WGS analiz, varyant yorumlama", url: "https://humgenomics.biomedcentral.com/", field: "Klinik Genomik", tags: ["biyoinformatik", "genomik", "varyant", "klinik"], color: "#457B9D", publisher: "BMC / Springer Nature", note: "WES/WGS klinik biyoinformatik çalışmaları ve varyant filtreleme stratejileri. Open access.", openAccess: true },
+  { id: 16, name: "Clinical Genetics", abbr: "Clin Genet", if2024: 3.2, quartile: "Q2", frequency: "Aylık", focus: "Klinik genetik, moleküler tanı, danışmanlık", url: "https://onlinelibrary.wiley.com/journal/13990004", field: "Klinik Genetik", tags: ["klinik", "moleküler", "test"], color: "#264653", publisher: "Wiley", note: "Kısa vaka raporları (Letter) formatı rezidanlar için hızlı yayın imkanı sunar.", openAccess: false },
+  { id: 17, name: "Orphanet Journal of Rare Diseases", abbr: "OJRD", if2024: 3.4, quartile: "Q2", frequency: "Sürekli", focus: "Nadir hastalıklar, epidemiyoloji, tanı yolculuğu", url: "https://ojrd.biomedcentral.com/", field: "Nadir Hastalıklar", tags: ["klinik", "nadir", "translasyonel"], color: "#588157", publisher: "BMC / Springer Nature", note: "Nadir hastalık kohortları ve tanı gecikme süreleri analizleri. Open access.", openAccess: true },
+  { id: 18, name: "Journal of Medical Genetics", abbr: "J Med Genet", if2024: 4.0, quartile: "Q2", frequency: "Aylık", focus: "Tıbbi genetik, genotip-fenotip korelasyonları", url: "https://jmg.bmj.com/", field: "Klinik Genetik", tags: ["klinik", "moleküler", "vaka"], color: "#1F618D", publisher: "BMJ", note: "Genotip-fenotip korelasyon çalışmaları ve yeni sendrom tanımlamaları.", openAccess: false },
+  { id: 19, name: "Pharmacogenomics", abbr: "Pharmacogenomics", if2024: 3.1, quartile: "Q2", frequency: "Aylık", focus: "Farmakogenomik uygulamalar, ilaç metabolizması genetiği", url: "https://www.future-medicine.com/journal/pgs", field: "Farmakogenetik", tags: ["farmakogenetik", "klinik", "translasyonel"], color: "#148F77", publisher: "Future Medicine", note: "CYP enzim polimorfizmleri, ilaç doz ayarlama ve farmakogenetik klinik uygulamalar.", openAccess: false },
+  { id: 20, name: "BMC Genomics", abbr: "BMC Genomics", if2024: 3.5, quartile: "Q2", frequency: "Sürekli", focus: "Genomik, transkriptomik, epigenomik, metagenomik", url: "https://bmcgenomics.biomedcentral.com/", field: "Genomik", tags: ["genomik", "hesaplamalı", "temel"], color: "#2E86C1", publisher: "BMC / Springer Nature", note: "Geniş kapsamlı genomik çalışmalar. Erişilebilir IF ve open access.", openAccess: true },
+  { id: 21, name: "Molecular Genetics and Metabolism", abbr: "Mol Genet Metab", if2024: 3.6, quartile: "Q2", frequency: "Aylık", focus: "Kalıtsal metabolizma hastalıkları, enzim eksiklikleri, tedavi", url: "https://www.sciencedirect.com/journal/molecular-genetics-and-metabolism", field: "Metabolik Genetik", tags: ["metabolik", "klinik", "translasyonel"], color: "#D35400", publisher: "Elsevier", note: "IEM (Inborn Errors of Metabolism) için temel dergi. Yenidoğan tarama ve tedavi çalışmaları.", openAccess: false },
+  { id: 22, name: "Cytogenetic and Genome Research", abbr: "Cytogenet Genome Res", if2024: 3.1, quartile: "Q2", frequency: "2 ayda bir", focus: "Sitogenetik, kromozom yapısı, genom organizasyonu", url: "https://karger.com/cgr", field: "Sitogenetik", tags: ["sitogenetik", "temel", "genomik"], color: "#7D3C98", publisher: "Karger", note: "Klasik sitogenetik ve modern moleküler sitogenetik (FISH, array CGH) çalışmaları.", openAccess: false },
+  { id: 23, name: "Genes", abbr: "Genes", if2024: 3.5, quartile: "Q2", frequency: "Sürekli", focus: "Genetik, genomik, gen ifadesi, epigenetik", url: "https://www.mdpi.com/journal/genes", field: "Genomik", tags: ["temel", "genomik", "moleküler"], color: "#27AE60", publisher: "MDPI", note: "Geniş kapsamlı genetik/genomik çalışmalar. Hızlı hakem süreci ve open access.", openAccess: true },
   // === Q3 — IF 1.5–3 ===
-  { id: 24, name: "American Journal of Medical Genetics Part A", abbr: "AJMG-A", if2024: 2.0, quartile: "Q3", frequency: "Aylık", focus: "Klinik genetik, dismorfik sendromlar, vaka raporları", url: "https://onlinelibrary.wiley.com/journal/15524833", field: "Klinik Genetik", tags: ["klinik", "dismorfik", "vaka"], color: "#6A040F", publisher: "Wiley", note: "Dismorfik sendrom vaka raporları için ana dergi. Rezidanlar için ideal ilk yayın hedefi." },
-  { id: 25, name: "Prenatal Diagnosis", abbr: "Prenat Diagn", if2024: 2.3, quartile: "Q3", frequency: "Aylık", focus: "Prenatal genetik tanı, NIPT, fetal tıp", url: "https://onlinelibrary.wiley.com/journal/10970223", field: "Prenatal Genetik", tags: ["prenatal", "klinik", "test"], color: "#E76F51", publisher: "Wiley", note: "NIPT, CVS/amniyosentez sonuçları ve prenatal array CGH çalışmaları." },
-  { id: 26, name: "Journal of Genetic Counseling", abbr: "J Genet Couns", if2024: 2.1, quartile: "Q3", frequency: "2 ayda bir", focus: "Genetik danışmanlık, psikososyal araştırma, hasta iletişimi", url: "https://onlinelibrary.wiley.com/journal/15733599", field: "Genetik Danışmanlık", tags: ["klinik", "danışmanlık", "psikososyal"], color: "#AF7AC5", publisher: "Wiley / NSGC", note: "Genetik danışmanlık pratiği ve araştırması. NSGC'nin resmi dergisi." },
-  { id: 27, name: "Molecular Cytogenetics", abbr: "Mol Cytogenet", if2024: 2.0, quartile: "Q3", frequency: "Sürekli", focus: "Moleküler sitogenetik, array CGH, FISH, kromozom analizi", url: "https://molecularcytogenetics.biomedcentral.com/", field: "Sitogenetik", tags: ["sitogenetik", "moleküler", "klinik"], color: "#C0392B", publisher: "BMC / Springer Nature", note: "Array CGH, FISH ve kromozomal mikrodelesyon/mikroduplikasyon vaka raporları. Open access." },
-  { id: 28, name: "BMC Medical Genetics / BMC Medical Genomics", abbr: "BMC Med Genomics", if2024: 2.7, quartile: "Q3", frequency: "Sürekli", focus: "Tıbbi genetik, klinik genomik, vaka serileri", url: "https://bmcmedgenomics.biomedcentral.com/", field: "Klinik Genomik", tags: ["klinik", "genomik", "vaka"], color: "#2980B9", publisher: "BMC / Springer Nature", note: "Klinik WES/WGS vaka raporları ve küçük kohort çalışmaları. Open access." },
-  { id: 29, name: "European Journal of Medical Genetics", abbr: "Eur J Med Genet", if2024: 2.2, quartile: "Q3", frequency: "2 ayda bir", focus: "Gelişimsel genetik, dismorfik sendromlar, konjenital anomaliler", url: "https://www.sciencedirect.com/journal/european-journal-of-medical-genetics", field: "Klinik Genetik", tags: ["klinik", "dismorfik", "vaka"], color: "#1ABC9C", publisher: "Elsevier", note: "Avrupa perspektifli klinik genetik vaka serileri ve genotip-fenotip çalışmaları." },
-  { id: 30, name: "Journal of Human Genetics", abbr: "J Hum Genet", if2024: 2.9, quartile: "Q3", frequency: "Aylık", focus: "İnsan genetiği, popülasyon genetiği, hastalık genleri", url: "https://www.nature.com/jhg/", field: "İnsan Genetiği", tags: ["temel", "genomik", "moleküler"], color: "#E74C3C", publisher: "Nature Portfolio / JHS", note: "Asya perspektifli insan genetiği. Popülasyon spesifik varyantlar ve hastalık çalışmaları." },
-  { id: 31, name: "Genetic Testing and Molecular Biomarkers", abbr: "Genet Test Mol Biomarkers", if2024: 1.7, quartile: "Q3", frequency: "Aylık", focus: "Genetik test validasyonu, moleküler biyobelirteçler", url: "https://www.liebertpub.com/journal/gtmb", field: "Genetik Test", tags: ["test", "moleküler", "klinik"], color: "#F39C12", publisher: "Mary Ann Liebert", note: "Genetik test yöntemlerinin validasyonu ve yeni moleküler biyobelirteç keşifleri." },
-  { id: 32, name: "Gene", abbr: "Gene", if2024: 2.6, quartile: "Q3", frequency: "Haftalık", focus: "Gen yapısı, ifadesi, düzenlenmesi, evrim", url: "https://www.sciencedirect.com/journal/gene", field: "Moleküler Genetik", tags: ["temel", "moleküler", "fonksiyonel"], color: "#16A085", publisher: "Elsevier", note: "Geniş kapsamlı moleküler genetik çalışmalar. Yüksek kabul oranı." },
+  { id: 24, name: "American Journal of Medical Genetics Part A", abbr: "AJMG-A", if2024: 2.0, quartile: "Q3", frequency: "Aylık", focus: "Klinik genetik, dismorfik sendromlar, vaka raporları", url: "https://onlinelibrary.wiley.com/journal/15524833", field: "Klinik Genetik", tags: ["klinik", "dismorfik", "vaka"], color: "#6A040F", publisher: "Wiley", note: "Dismorfik sendrom vaka raporları için ana dergi. Rezidanlar için ideal ilk yayın hedefi.", openAccess: false },
+  { id: 25, name: "Prenatal Diagnosis", abbr: "Prenat Diagn", if2024: 2.3, quartile: "Q3", frequency: "Aylık", focus: "Prenatal genetik tanı, NIPT, fetal tıp", url: "https://onlinelibrary.wiley.com/journal/10970223", field: "Prenatal Genetik", tags: ["prenatal", "klinik", "test"], color: "#E76F51", publisher: "Wiley", note: "NIPT, CVS/amniyosentez sonuçları ve prenatal array CGH çalışmaları.", openAccess: false },
+  { id: 26, name: "Journal of Genetic Counseling", abbr: "J Genet Couns", if2024: 2.1, quartile: "Q3", frequency: "2 ayda bir", focus: "Genetik danışmanlık, psikososyal araştırma, hasta iletişimi", url: "https://onlinelibrary.wiley.com/journal/15733599", field: "Genetik Danışmanlık", tags: ["klinik", "danışmanlık", "psikososyal"], color: "#AF7AC5", publisher: "Wiley / NSGC", note: "Genetik danışmanlık pratiği ve araştırması. NSGC'nin resmi dergisi.", openAccess: false },
+  { id: 27, name: "Molecular Cytogenetics", abbr: "Mol Cytogenet", if2024: 2.0, quartile: "Q3", frequency: "Sürekli", focus: "Moleküler sitogenetik, array CGH, FISH, kromozom analizi", url: "https://molecularcytogenetics.biomedcentral.com/", field: "Sitogenetik", tags: ["sitogenetik", "moleküler", "klinik"], color: "#C0392B", publisher: "BMC / Springer Nature", note: "Array CGH, FISH ve kromozomal mikrodelesyon/mikroduplikasyon vaka raporları. Open access.", openAccess: true },
+  { id: 28, name: "BMC Medical Genetics / BMC Medical Genomics", abbr: "BMC Med Genomics", if2024: 2.7, quartile: "Q3", frequency: "Sürekli", focus: "Tıbbi genetik, klinik genomik, vaka serileri", url: "https://bmcmedgenomics.biomedcentral.com/", field: "Klinik Genomik", tags: ["klinik", "genomik", "vaka"], color: "#2980B9", publisher: "BMC / Springer Nature", note: "Klinik WES/WGS vaka raporları ve küçük kohort çalışmaları. Open access.", openAccess: true },
+  { id: 29, name: "European Journal of Medical Genetics", abbr: "Eur J Med Genet", if2024: 2.2, quartile: "Q3", frequency: "2 ayda bir", focus: "Gelişimsel genetik, dismorfik sendromlar, konjenital anomaliler", url: "https://www.sciencedirect.com/journal/european-journal-of-medical-genetics", field: "Klinik Genetik", tags: ["klinik", "dismorfik", "vaka"], color: "#1ABC9C", publisher: "Elsevier", note: "Avrupa perspektifli klinik genetik vaka serileri ve genotip-fenotip çalışmaları.", openAccess: false },
+  { id: 30, name: "Journal of Human Genetics", abbr: "J Hum Genet", if2024: 2.9, quartile: "Q3", frequency: "Aylık", focus: "İnsan genetiği, popülasyon genetiği, hastalık genleri", url: "https://www.nature.com/jhg/", field: "İnsan Genetiği", tags: ["temel", "genomik", "moleküler"], color: "#E74C3C", publisher: "Nature Portfolio / JHS", note: "Asya perspektifli insan genetiği. Popülasyon spesifik varyantlar ve hastalık çalışmaları.", openAccess: false },
+  { id: 31, name: "Genetic Testing and Molecular Biomarkers", abbr: "Genet Test Mol Biomarkers", if2024: 1.7, quartile: "Q3", frequency: "Aylık", focus: "Genetik test validasyonu, moleküler biyobelirteçler", url: "https://www.liebertpub.com/journal/gtmb", field: "Genetik Test", tags: ["test", "moleküler", "klinik"], color: "#F39C12", publisher: "Mary Ann Liebert", note: "Genetik test yöntemlerinin validasyonu ve yeni moleküler biyobelirteç keşifleri.", openAccess: false },
+  { id: 32, name: "Gene", abbr: "Gene", if2024: 2.6, quartile: "Q3", frequency: "Haftalık", focus: "Gen yapısı, ifadesi, düzenlenmesi, evrim", url: "https://www.sciencedirect.com/journal/gene", field: "Moleküler Genetik", tags: ["temel", "moleküler", "fonksiyonel"], color: "#16A085", publisher: "Elsevier", note: "Geniş kapsamlı moleküler genetik çalışmalar. Yüksek kabul oranı.", openAccess: false },
   // === Q4 — IF < 1.5 ===
-  { id: 33, name: "Molecular Syndromology", abbr: "Mol Syndromol", if2024: 1.4, quartile: "Q4", frequency: "2 ayda bir", focus: "Sendromik hastalıklar, dismorfik fenotip, gelişimsel bozukluklar", url: "https://karger.com/msy", field: "Klinik Genetik", tags: ["klinik", "dismorfik", "vaka"], color: "#95A5A6", publisher: "Karger", note: "Nadir sendromların fenotip-genotip tanımlaması. Vaka raporları için erişilebilir hedef." },
-  { id: 34, name: "Balkan Journal of Medical Genetics", abbr: "Balkan J Med Genet", if2024: 0.8, quartile: "Q4", frequency: "2 yılda bir", focus: "Balkan bölgesi genetik çalışmaları, popülasyon genetiği", url: "https://sciendo.com/journal/BJMG", field: "İnsan Genetiği", tags: ["klinik", "temel", "vaka"], color: "#7F8C8D", publisher: "Sciendo", note: "Bölgesel genetik çalışmalar. Türk araştırmacılar için erişilebilir yayın hedefi." },
-  { id: 35, name: "Journal of Community Genetics", abbr: "J Community Genet", if2024: 1.3, quartile: "Q4", frequency: "Sürekli", focus: "Toplum genetiği, taşıyıcı tarama, halk sağlığı genetiği", url: "https://link.springer.com/journal/12687", field: "Genetik Danışmanlık", tags: ["klinik", "danışmanlık", "halk sağlığı"], color: "#AEB6BF", publisher: "Springer", note: "Toplum tabanlı genetik tarama ve genetik danışmanlık araştırmaları." },
+  { id: 33, name: "Molecular Syndromology", abbr: "Mol Syndromol", if2024: 1.4, quartile: "Q4", frequency: "2 ayda bir", focus: "Sendromik hastalıklar, dismorfik fenotip, gelişimsel bozukluklar", url: "https://karger.com/msy", field: "Klinik Genetik", tags: ["klinik", "dismorfik", "vaka"], color: "#95A5A6", publisher: "Karger", note: "Nadir sendromların fenotip-genotip tanımlaması. Vaka raporları için erişilebilir hedef.", openAccess: false },
+  { id: 34, name: "Balkan Journal of Medical Genetics", abbr: "Balkan J Med Genet", if2024: 0.8, quartile: "Q4", frequency: "2 yılda bir", focus: "Balkan bölgesi genetik çalışmaları, popülasyon genetiği", url: "https://sciendo.com/journal/BJMG", field: "İnsan Genetiği", tags: ["klinik", "temel", "vaka"], color: "#7F8C8D", publisher: "Sciendo", note: "Bölgesel genetik çalışmalar. Türk araştırmacılar için erişilebilir yayın hedefi.", openAccess: false },
+  { id: 35, name: "Journal of Community Genetics", abbr: "J Community Genet", if2024: 1.3, quartile: "Q4", frequency: "Sürekli", focus: "Toplum genetiği, taşıyıcı tarama, halk sağlığı genetiği", url: "https://link.springer.com/journal/12687", field: "Genetik Danışmanlık", tags: ["klinik", "danışmanlık", "halk sağlığı"], color: "#AEB6BF", publisher: "Springer", note: "Toplum tabanlı genetik tarama ve genetik danışmanlık araştırmaları.", openAccess: true },
 ];
 
 const researchFields = [
@@ -69,11 +61,10 @@ const quartileInfo = {
 };
 const periodLabels = { month: "Bu Ay", year: "Bu Yıl (2026)", alltime: "Tüm Zamanlar" };
 
-// Shelf definitions (like Goodreads)
-const SHELVES = {
-  read: { label: "Okudum", icon: "✓", color: "#22C55E", desc: "Okuduğun makaleler" },
-  reading: { label: "Okuyorum", icon: "📖", color: "#3B82F6", desc: "Şu an okuduğun makaleler" },
-  wantToRead: { label: "Okumak İstiyorum", icon: "📋", color: "#F59E0B", desc: "Okuma listene eklediğin makaleler" },
+const READING_STATUSES = {
+  okunacak: { label: "Okunacak", icon: "📋", color: "#F59E0B" },
+  okunuyor: { label: "Okunuyor", icon: "📖", color: "#3B82F6" },
+  okundu: { label: "Okundu", icon: "✓", color: "#22C55E" },
 };
 
 // ──────────────────────────────────────────────
@@ -118,6 +109,157 @@ const journalMeta = {
 };
 
 // ──────────────────────────────────────────────
+// WIZARD DATA
+// ──────────────────────────────────────────────
+const wizardSteps = [
+  {
+    id: "researchType",
+    question: "Araştırma tipiniz nedir?",
+    options: [
+      { value: "case_report", label: "Vaka Raporu", desc: "Tekil veya seri vaka sunumu" },
+      { value: "original", label: "Özgün Araştırma", desc: "Orijinal klinik veya laboratuvar çalışması" },
+      { value: "review", label: "Derleme", desc: "Sistematik veya anlatımsal derleme" },
+      { value: "meta_analysis", label: "Meta-Analiz", desc: "Birden fazla çalışmanın istatistiksel sentezi" },
+      { value: "letter", label: "Editöre Mektup", desc: "Kısa iletişim, yorum veya teknik not" },
+      { value: "method", label: "Yöntem / Pipeline", desc: "Biyoinformatik araç veya analiz yöntemi" },
+    ]
+  },
+  {
+    id: "subspecialty",
+    question: "Alt uzmanlık alanınız?",
+    options: researchFields.map(f => ({ value: f, label: f, desc: "" }))
+  },
+  {
+    id: "careerStage",
+    question: "Kariyer aşamanız?",
+    options: [
+      { value: "resident", label: "Asistan (Uzmanlık Öğrencisi)", desc: "İlk yayın deneyimi" },
+      { value: "fellow", label: "Fellow / Yan Dal", desc: "Uzmanlaşma dönemi" },
+      { value: "assistant_prof", label: "Dr. Öğr. Üyesi", desc: "Akademik kariyer başlangıcı" },
+      { value: "associate_prof", label: "Doçent", desc: "Orta kariyer" },
+      { value: "professor", label: "Profesör", desc: "İleri kariyer" },
+    ]
+  },
+  {
+    id: "openAccess",
+    question: "Açık erişim gerekli mi?",
+    options: [
+      { value: "required", label: "Evet, şart", desc: "Sadece açık erişim dergiler" },
+      { value: "preferred", label: "Tercih ederim", desc: "Açık erişim avantajlı" },
+      { value: "no", label: "Önemli değil", desc: "Tüm dergiler olabilir" },
+    ]
+  },
+  {
+    id: "targetIF",
+    question: "Hedef IF aralığı?",
+    options: [
+      { value: "high", label: "IF > 6 (Q1)", desc: "En prestijli dergiler" },
+      { value: "mid", label: "IF 3-6 (Q2)", desc: "Güçlü orta seviye" },
+      { value: "accessible", label: "IF 1.5-3 (Q3)", desc: "Erişilebilir dergiler" },
+      { value: "entry", label: "IF < 1.5 (Q4)", desc: "Giriş seviyesi" },
+      { value: "any", label: "Farketmez", desc: "IF önemli değil" },
+    ]
+  },
+];
+
+function scoreJournal(journal, answers) {
+  let score = 0;
+  let maxScore = 0;
+
+  // Research type (30%)
+  maxScore += 30;
+  const typeTagMap = {
+    case_report: ["vaka", "dismorfik", "klinik"],
+    original: ["temel", "moleküler", "genomik", "klinik"],
+    review: ["derleme"],
+    meta_analysis: ["hesaplamalı", "klinik"],
+    letter: ["vaka", "klinik"],
+    method: ["biyoinformatik", "pipeline", "hesaplamalı"],
+  };
+  const typeTags = typeTagMap[answers.researchType] || [];
+  const typeMatch = typeTags.filter(t => journal.tags.includes(t)).length;
+  if (typeMatch > 0) score += Math.min(30, (typeMatch / typeTags.length) * 30);
+
+  // Case report bonus for specific journals
+  if (answers.researchType === "case_report") {
+    if (journal.note.toLowerCase().includes("vaka rapor") || journal.note.toLowerCase().includes("rezidan")) score += 10;
+  }
+  if (answers.researchType === "review" && journal.tags.includes("derleme")) score += 10;
+  if (answers.researchType === "method" && (journal.tags.includes("pipeline") || journal.tags.includes("biyoinformatik"))) score += 10;
+
+  // Subspecialty (25%)
+  maxScore += 25;
+  if (answers.subspecialty) {
+    if (journal.field === answers.subspecialty) score += 25;
+    else {
+      const fieldTags = {
+        "Genomik": ["genomik"], "Klinik Genetik": ["klinik"], "Klinik Genomik": ["genomik", "klinik"],
+        "Moleküler Genetik": ["moleküler"], "Biyoinformatik": ["biyoinformatik", "hesaplamalı"],
+        "İnsan Genetiği": ["temel", "genomik"], "Sitogenetik": ["sitogenetik"],
+        "Nadir Hastalıklar": ["nadir"], "Prenatal Genetik": ["prenatal"],
+        "Farmakogenetik": ["farmakogenetik"], "Metabolik Genetik": ["metabolik"],
+        "Genetik Danışmanlık": ["danışmanlık"], "Genetik Test": ["test"],
+      };
+      const fTags = fieldTags[answers.subspecialty] || [];
+      const fMatch = fTags.filter(t => journal.tags.includes(t)).length;
+      if (fMatch > 0) score += (fMatch / fTags.length) * 15;
+    }
+  }
+
+  // Career stage (15%)
+  maxScore += 15;
+  const stageQuartileMap = {
+    resident: ["Q3", "Q4"],
+    fellow: ["Q2", "Q3"],
+    assistant_prof: ["Q1", "Q2"],
+    associate_prof: ["Q1", "Q2"],
+    professor: ["Q1"],
+  };
+  const preferredQ = stageQuartileMap[answers.careerStage] || [];
+  if (preferredQ.includes(journal.quartile)) score += 15;
+  else if (answers.careerStage === "resident" && journal.quartile === "Q2") score += 8;
+  else if (answers.careerStage === "professor" && journal.quartile === "Q2") score += 8;
+
+  // Open access (15%)
+  maxScore += 15;
+  if (answers.openAccess === "required") {
+    if (journal.openAccess) score += 15;
+  } else if (answers.openAccess === "preferred") {
+    if (journal.openAccess) score += 15;
+    else score += 8;
+  } else {
+    score += 12;
+  }
+
+  // IF range (15%)
+  maxScore += 15;
+  const ifRanges = {
+    high: [6, 100], mid: [3, 6], accessible: [1.5, 3], entry: [0, 1.5], any: [0, 100],
+  };
+  const range = ifRanges[answers.targetIF] || [0, 100];
+  if (journal.if2024 >= range[0] && journal.if2024 <= range[1]) score += 15;
+  else {
+    const dist = Math.min(Math.abs(journal.if2024 - range[0]), Math.abs(journal.if2024 - range[1]));
+    score += Math.max(0, 15 - dist * 2);
+  }
+
+  return Math.min(100, Math.round((score / maxScore) * 100));
+}
+
+function getWizardReasoning(journal, answers) {
+  const reasons = [];
+  if (journal.field === answers.subspecialty) reasons.push(`${answers.subspecialty} alanında doğrudan hedef dergi`);
+  if (answers.researchType === "case_report" && journal.note.toLowerCase().includes("vaka")) reasons.push("Vaka raporları için uygun");
+  if (answers.researchType === "method" && journal.tags.includes("pipeline")) reasons.push("Biyoinformatik araç/pipeline yayınları kabul ediyor");
+  if (answers.researchType === "review" && journal.tags.includes("derleme")) reasons.push("Derleme makaleleri yayımlayan dergi");
+  if (journal.openAccess && answers.openAccess !== "no") reasons.push("Açık erişim");
+  if (answers.careerStage === "resident" && journal.note.toLowerCase().includes("rezidan")) reasons.push("Rezidanlar için ideal ilk yayın hedefi");
+  if (journal.note.toLowerCase().includes("türk")) reasons.push("Türk araştırmacıların sık yayın yaptığı dergi");
+  if (reasons.length === 0) reasons.push(`IF ${journal.if2024} · ${journal.quartile} · ${journal.field}`);
+  return reasons.join(". ") + ".";
+}
+
+// ──────────────────────────────────────────────
 // API FUNCTIONS
 // ──────────────────────────────────────────────
 function getDateRange(period) {
@@ -149,8 +291,8 @@ async function pubmedSearch(journalQuery, mindate, maxdate, sort, retmax = 100) 
 
 function parseArticlesFromXml(xmlText, expectedSource) {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, "text/xml");
-  const articleNodes = doc.querySelectorAll("PubmedArticle");
+  const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+  const articleNodes = xmlDoc.querySelectorAll("PubmedArticle");
   const articles = [];
 
   for (const node of articleNodes) {
@@ -299,144 +441,70 @@ async function fetchArticles(journalName, period) {
 }
 
 // ──────────────────────────────────────────────
-// FIREBASE HELPER HOOKS
+// READING LIST BUTTON COMPONENT
 // ──────────────────────────────────────────────
-
-// Generate a stable article ID from DOI or PMID
-function articleId(art) {
-  if (art.doi) return art.doi.replace(/[./]/g, "_");
-  if (art.pmid) return `pmid_${art.pmid}`;
-  return `hash_${btoa(art.title.slice(0, 60)).replace(/[^a-zA-Z0-9]/g, "")}`;
-}
-
-// Check if Firebase is configured
-function useFirebaseReady() {
-  return firebaseConfigured;
-}
-
-function useAuth() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const firebaseReady = useFirebaseReady();
-
-  useEffect(() => {
-    if (!firebaseReady) { setLoading(false); return; }
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
-    return unsub;
-  }, [firebaseReady]);
-
-  const login = async () => {
-    if (!firebaseReady) return;
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (e) {
-      console.error("Login error:", e);
-    }
-  };
-
-  const logout = async () => {
-    if (!firebaseReady) return;
-    await signOut(auth);
-  };
-
-  return { user, loading, login, logout, firebaseReady };
-}
-
-// ──────────────────────────────────────────────
-// STAR RATING COMPONENT
-// ──────────────────────────────────────────────
-function StarRating({ rating, onRate, size = 18, readonly = false }) {
-  const [hover, setHover] = useState(0);
-  return (
-    <div style={{ display: "inline-flex", gap: "2px" }}>
-      {[1, 2, 3, 4, 5].map(star => (
-        <span
-          key={star}
-          onClick={e => { e.stopPropagation(); if (!readonly && onRate) onRate(star); }}
-          onMouseEnter={() => !readonly && setHover(star)}
-          onMouseLeave={() => !readonly && setHover(0)}
-          style={{
-            cursor: readonly ? "default" : "pointer",
-            fontSize: `${size}px`,
-            color: star <= (hover || rating) ? "#F59E0B" : "#CBD5E1",
-            transition: "color 0.15s, transform 0.15s",
-            transform: !readonly && star <= hover ? "scale(1.2)" : "scale(1)",
-            userSelect: "none"
-          }}
-        >
-          ★
-        </span>
-      ))}
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// SHELF BUTTON COMPONENT
-// ──────────────────────────────────────────────
-function ShelfButton({ currentShelf, onSetShelf, compact = false }) {
+function ReadingListButton({ articleKey, readingList, setReadingList, artData }) {
   const [open, setOpen] = useState(false);
+  const current = readingList[articleKey];
+
+  const setStatus = (status) => {
+    setReadingList(prev => {
+      if (!status) {
+        const next = { ...prev };
+        delete next[articleKey];
+        return next;
+      }
+      return { ...prev, [articleKey]: { ...artData, status, notes: prev[articleKey]?.notes || "", addedAt: prev[articleKey]?.addedAt || Date.now(), updatedAt: Date.now() } };
+    });
+    setOpen(false);
+  };
+
   return (
     <div style={{ position: "relative", display: "inline-block" }}>
       <button
         onClick={e => { e.stopPropagation(); setOpen(!open); }}
         style={{
-          fontSize: compact ? "11px" : "12px",
-          padding: compact ? "4px 10px" : "6px 14px",
-          borderRadius: "8px",
-          border: currentShelf ? `1px solid ${SHELVES[currentShelf].color}` : "1px solid #cbd5e1",
-          background: currentShelf ? `${SHELVES[currentShelf].color}15` : "#ffffff",
-          color: currentShelf ? SHELVES[currentShelf].color : "#64748b",
-          cursor: "pointer", fontWeight: 500,
-          fontFamily: "'DM Sans', sans-serif",
-          display: "flex", alignItems: "center", gap: "6px",
-          transition: "all 0.15s"
+          fontSize: "11px", padding: "4px 10px", borderRadius: "8px",
+          border: current ? `1px solid ${READING_STATUSES[current.status].color}` : "1px solid #cbd5e1",
+          background: current ? `${READING_STATUSES[current.status].color}15` : "#ffffff",
+          color: current ? READING_STATUSES[current.status].color : "#64748b",
+          cursor: "pointer", fontWeight: 500, fontFamily: "'DM Sans', sans-serif",
+          display: "flex", alignItems: "center", gap: "6px", transition: "all 0.15s"
         }}
       >
-        {currentShelf ? `${SHELVES[currentShelf].icon} ${SHELVES[currentShelf].label}` : "📚 Rafa Ekle"}
+        {current ? `${READING_STATUSES[current.status].icon} ${READING_STATUSES[current.status].label}` : "📚 Listeye Ekle"}
         <span style={{ fontSize: "8px" }}>▾</span>
       </button>
       {open && (
         <div style={{
           position: "absolute", top: "100%", left: 0, marginTop: "4px",
           background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100,
-          minWidth: "180px", overflow: "hidden"
+          boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 100, minWidth: "170px", overflow: "hidden"
         }}>
-          {Object.entries(SHELVES).map(([key, shelf]) => (
+          {Object.entries(READING_STATUSES).map(([key, s]) => (
             <button key={key}
-              onClick={e => {
-                e.stopPropagation();
-                onSetShelf(currentShelf === key ? null : key);
-                setOpen(false);
-              }}
+              onClick={e => { e.stopPropagation(); setStatus(current?.status === key ? null : key); }}
               style={{
                 display: "flex", alignItems: "center", gap: "10px",
                 width: "100%", padding: "10px 14px", border: "none",
-                background: currentShelf === key ? `${shelf.color}10` : "transparent",
-                color: currentShelf === key ? shelf.color : "#334155",
+                background: current?.status === key ? `${s.color}10` : "transparent",
+                color: current?.status === key ? s.color : "#334155",
                 fontSize: "13px", cursor: "pointer", textAlign: "left",
                 fontFamily: "'DM Sans', sans-serif",
-                borderLeft: currentShelf === key ? `3px solid ${shelf.color}` : "3px solid transparent",
+                borderLeft: current?.status === key ? `3px solid ${s.color}` : "3px solid transparent",
                 transition: "all 0.1s"
               }}
-              onMouseEnter={e => { if (currentShelf !== key) e.currentTarget.style.background = "#f8fafc"; }}
-              onMouseLeave={e => { if (currentShelf !== key) e.currentTarget.style.background = "transparent"; }}
+              onMouseEnter={e => { if (current?.status !== key) e.currentTarget.style.background = "#f8fafc"; }}
+              onMouseLeave={e => { if (current?.status !== key) e.currentTarget.style.background = "transparent"; }}
             >
-              <span>{shelf.icon}</span>
-              <div>
-                <div style={{ fontWeight: 500 }}>{shelf.label}</div>
-                <div style={{ fontSize: "11px", color: "#94a3b8" }}>{shelf.desc}</div>
-              </div>
-              {currentShelf === key && <span style={{ marginLeft: "auto", fontSize: "14px" }}>✓</span>}
+              <span>{s.icon}</span>
+              <span style={{ fontWeight: 500 }}>{s.label}</span>
+              {current?.status === key && <span style={{ marginLeft: "auto", fontSize: "14px" }}>✓</span>}
             </button>
           ))}
-          {currentShelf && (
+          {current && (
             <button
-              onClick={e => { e.stopPropagation(); onSetShelf(null); setOpen(false); }}
+              onClick={e => { e.stopPropagation(); setStatus(null); }}
               style={{
                 display: "flex", alignItems: "center", gap: "10px",
                 width: "100%", padding: "10px 14px", border: "none",
@@ -445,7 +513,7 @@ function ShelfButton({ currentShelf, onSetShelf, compact = false }) {
                 fontSize: "12px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif"
               }}
             >
-              ✕ Raftan Kaldır
+              ✕ Listeden Kaldır
             </button>
           )}
         </div>
@@ -455,439 +523,62 @@ function ShelfButton({ currentShelf, onSetShelf, compact = false }) {
 }
 
 // ──────────────────────────────────────────────
-// REVIEW / COMMENT COMPONENT
+// ARTICLE NOTES COMPONENT
 // ──────────────────────────────────────────────
-function ReviewSection({ artId, user, firebaseReady }) {
-  const [reviews, setReviews] = useState([]);
-  const [newReview, setNewReview] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!firebaseReady || !artId) return;
-    setLoading(true);
-    const q = query(
-      collection(db, "reviews"),
-      where("articleId", "==", artId),
-      orderBy("createdAt", "desc"),
-      limit(50)
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      setReviews(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    }, () => setLoading(false));
-    return unsub;
-  }, [artId, firebaseReady]);
-
-  const submitReview = async () => {
-    if (!user || !newReview.trim() || submitting) return;
-    setSubmitting(true);
-    try {
-      const reviewId = `${artId}_${user.uid}_${Date.now()}`;
-      await setDoc(doc(db, "reviews", reviewId), {
-        articleId: artId,
-        userId: user.uid,
-        userName: user.displayName || "Anonim",
-        userPhoto: user.photoURL || "",
-        text: newReview.trim(),
-        createdAt: serverTimestamp(),
-      });
-      setNewReview("");
-    } catch (e) {
-      console.error("Review submit error:", e);
-    }
-    setSubmitting(false);
-  };
-
-  const deleteReview = async (reviewId) => {
-    try {
-      await deleteDoc(doc(db, "reviews", reviewId));
-    } catch (e) {
-      console.error("Delete review error:", e);
-    }
-  };
+function ArticleNotes({ articleKey, readingList, setReadingList }) {
+  const [editing, setEditing] = useState(false);
+  const current = readingList[articleKey];
+  if (!current) return null;
 
   return (
-    <div style={{ marginTop: "12px", borderTop: "1px solid #e2e8f0", paddingTop: "12px" }}>
-      <div style={{ fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
-        💬 Tartışma
-        {reviews.length > 0 && <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 400 }}>({reviews.length})</span>}
-      </div>
-
-      {/* Write review */}
-      {user ? (
-        <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-          {user.photoURL && (
-            <img src={user.photoURL} alt="" style={{ width: "28px", height: "28px", borderRadius: "50%", flexShrink: 0 }} />
-          )}
-          <div style={{ flex: 1 }}>
-            <textarea
-              value={newReview}
-              onChange={e => setNewReview(e.target.value)}
-              placeholder="Bu makale hakkında ne düşünüyorsun?"
-              style={{
-                width: "100%", padding: "10px 12px", borderRadius: "8px",
-                border: "1px solid #e2e8f0", background: "#f8fafc",
-                fontSize: "13px", color: "#334155", resize: "vertical",
-                minHeight: "60px", fontFamily: "'DM Sans', sans-serif",
-                outline: "none", boxSizing: "border-box"
-              }}
-              onFocus={e => e.currentTarget.style.borderColor = "#93c5fd"}
-              onBlur={e => e.currentTarget.style.borderColor = "#e2e8f0"}
-            />
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "6px" }}>
-              <button
-                onClick={submitReview}
-                disabled={!newReview.trim() || submitting}
-                style={{
-                  padding: "6px 16px", borderRadius: "6px", border: "none",
-                  background: newReview.trim() ? "#1e40af" : "#cbd5e1",
-                  color: "#ffffff", fontSize: "12px", fontWeight: 500,
-                  cursor: newReview.trim() ? "pointer" : "default",
-                  fontFamily: "'DM Sans', sans-serif",
-                  opacity: submitting ? 0.6 : 1
-                }}
-              >
-                {submitting ? "Gönderiliyor..." : "Yorum Yap"}
-              </button>
-            </div>
-          </div>
-        </div>
+    <div style={{ marginTop: "6px" }}>
+      {!editing ? (
+        <button onClick={e => { e.stopPropagation(); setEditing(true); }}
+          style={{
+            fontSize: "11px", color: current.notes ? "#475569" : "#94a3b8",
+            background: "none", border: "none", cursor: "pointer", padding: "2px 0",
+            fontFamily: "'DM Sans', sans-serif", fontStyle: current.notes ? "normal" : "italic"
+          }}
+        >
+          {current.notes ? `📝 ${current.notes.slice(0, 60)}${current.notes.length > 60 ? "..." : ""}` : "📝 Not ekle..."}
+        </button>
       ) : (
-        <div style={{
-          padding: "12px", borderRadius: "8px", background: "#f8fafc",
-          border: "1px dashed #cbd5e1", textAlign: "center",
-          fontSize: "12px", color: "#64748b", marginBottom: "12px"
-        }}>
-          Yorum yapmak için giriş yapın
+        <div style={{ display: "flex", gap: "6px" }} onClick={e => e.stopPropagation()}>
+          <textarea
+            autoFocus
+            value={current.notes || ""}
+            onChange={e => {
+              const notes = e.target.value;
+              setReadingList(prev => ({ ...prev, [articleKey]: { ...prev[articleKey], notes, updatedAt: Date.now() } }));
+            }}
+            placeholder="Kişisel notunuz..."
+            style={{
+              flex: 1, padding: "6px 10px", borderRadius: "6px",
+              border: "1px solid #93c5fd", background: "#f8fafc",
+              fontSize: "12px", color: "#334155", resize: "vertical",
+              minHeight: "40px", fontFamily: "'DM Sans', sans-serif", outline: "none"
+            }}
+          />
+          <button onClick={() => setEditing(false)} style={{
+            padding: "6px 10px", borderRadius: "6px", border: "none",
+            background: "#1e40af", color: "#fff", fontSize: "11px",
+            cursor: "pointer", fontFamily: "'DM Sans', sans-serif", alignSelf: "flex-end"
+          }}>Tamam</button>
         </div>
       )}
-
-      {/* Reviews list */}
-      {loading && <div style={{ fontSize: "12px", color: "#94a3b8", padding: "8px 0" }}>Yorumlar yükleniyor...</div>}
-      {reviews.map(r => (
-        <div key={r.id} style={{
-          padding: "10px 12px", borderRadius: "8px", background: "#ffffff",
-          border: "1px solid #f1f5f9", marginBottom: "6px"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-            {r.userPhoto && <img src={r.userPhoto} alt="" style={{ width: "22px", height: "22px", borderRadius: "50%" }} />}
-            <span style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>{r.userName}</span>
-            <span style={{ fontSize: "10px", color: "#94a3b8" }}>
-              {r.createdAt?.toDate ? new Date(r.createdAt.toDate()).toLocaleDateString("tr-TR") : ""}
-            </span>
-            {user && r.userId === user.uid && (
-              <button onClick={() => deleteReview(r.id)} style={{
-                marginLeft: "auto", fontSize: "10px", color: "#ef4444",
-                background: "none", border: "none", cursor: "pointer"
-              }}>Sil</button>
-            )}
-          </div>
-          <div style={{ fontSize: "13px", color: "#475569", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{r.text}</div>
-        </div>
-      ))}
     </div>
   );
 }
 
 // ──────────────────────────────────────────────
-// USER PROFILE PANEL
+// ARTICLE PANEL
 // ──────────────────────────────────────────────
-function ProfilePanel({ user, userArticles, onClose }) {
-  const readCount = Object.values(userArticles).filter(a => a.shelf === "read").length;
-  const readingCount = Object.values(userArticles).filter(a => a.shelf === "reading").length;
-  const wantCount = Object.values(userArticles).filter(a => a.shelf === "wantToRead").length;
-  const ratedArticles = Object.values(userArticles).filter(a => a.rating > 0);
-  const avgRating = ratedArticles.length > 0
-    ? (ratedArticles.reduce((s, a) => s + a.rating, 0) / ratedArticles.length).toFixed(1)
-    : "-";
-
-  // Group by shelf
-  const shelvedArticles = {};
-  Object.entries(SHELVES).forEach(([key]) => {
-    shelvedArticles[key] = Object.entries(userArticles)
-      .filter(([, a]) => a.shelf === key)
-      .sort((a, b) => (b[1].updatedAt || 0) - (a[1].updatedAt || 0));
-  });
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 1000,
-      background: "rgba(15,23,42,0.5)", backdropFilter: "blur(4px)",
-      display: "flex", justifyContent: "center", alignItems: "flex-start",
-      padding: "40px 20px", overflowY: "auto"
-    }} onClick={onClose}>
-      <div style={{
-        background: "#ffffff", borderRadius: "16px", width: "100%", maxWidth: "640px",
-        boxShadow: "0 24px 48px rgba(0,0,0,0.15)", overflow: "hidden"
-      }} onClick={e => e.stopPropagation()}>
-        {/* Profile header */}
-        <div style={{
-          background: "linear-gradient(135deg, #1e3a8a, #1e40af)",
-          padding: "32px 28px", color: "#ffffff"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            {user.photoURL && (
-              <img src={user.photoURL} alt="" style={{
-                width: "64px", height: "64px", borderRadius: "50%",
-                border: "3px solid rgba(255,255,255,0.3)"
-              }} />
-            )}
-            <div>
-              <div style={{ fontSize: "22px", fontWeight: 600 }}>{user.displayName || "Kullanıcı"}</div>
-              <div style={{ fontSize: "13px", opacity: 0.7 }}>{user.email}</div>
-            </div>
-            <button onClick={onClose} style={{
-              marginLeft: "auto", background: "rgba(255,255,255,0.15)",
-              border: "none", color: "#ffffff", width: "32px", height: "32px",
-              borderRadius: "8px", cursor: "pointer", fontSize: "14px"
-            }}>✕</button>
-          </div>
-
-          {/* Stats */}
-          <div style={{ display: "flex", gap: "24px", marginTop: "20px" }}>
-            {[
-              { label: "Okunan", value: readCount, color: "#86EFAC" },
-              { label: "Okunan", value: readingCount, color: "#93C5FD" },
-              { label: "Liste", value: wantCount, color: "#FDE68A" },
-              { label: "Ort. Puan", value: avgRating, color: "#FDE68A" },
-            ].map((s, i) => (
-              <div key={i} style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "24px", fontWeight: 700, color: s.color }}>{s.value}</div>
-                <div style={{ fontSize: "11px", opacity: 0.7 }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Shelves */}
-        <div style={{ padding: "24px 28px" }}>
-          {Object.entries(SHELVES).map(([key, shelf]) => {
-            const articles = shelvedArticles[key] || [];
-            if (articles.length === 0) return null;
-            return (
-              <div key={key} style={{ marginBottom: "24px" }}>
-                <div style={{
-                  fontSize: "14px", fontWeight: 600, color: shelf.color,
-                  marginBottom: "10px", display: "flex", alignItems: "center", gap: "8px"
-                }}>
-                  {shelf.icon} {shelf.label}
-                  <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 400 }}>({articles.length})</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {articles.map(([id, art]) => (
-                    <div key={id} style={{
-                      padding: "10px 14px", borderRadius: "8px",
-                      background: "#f8fafc", border: "1px solid #e2e8f0",
-                      display: "flex", alignItems: "center", gap: "10px"
-                    }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: "13px", fontWeight: 500, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {art.title}
-                        </div>
-                        <div style={{ fontSize: "11px", color: "#64748b" }}>
-                          {art.authors} · {art.journalAbbr || ""}
-                        </div>
-                      </div>
-                      {art.rating > 0 && <StarRating rating={art.rating} readonly size={14} />}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-
-          {readCount + readingCount + wantCount === 0 && (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
-              <div style={{ fontSize: "32px", marginBottom: "8px" }}>📚</div>
-              <div style={{ fontSize: "14px" }}>Henüz rafına makale eklenmemiş</div>
-              <div style={{ fontSize: "12px", marginTop: "4px" }}>Makaleleri keşfet ve rafa ekle!</div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// COMMUNITY FEED
-// ──────────────────────────────────────────────
-function CommunityFeed({ firebaseReady, onClose }) {
-  const [feed, setFeed] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!firebaseReady) { setLoading(false); return; }
-    const q = query(
-      collection(db, "activity"),
-      orderBy("createdAt", "desc"),
-      limit(30)
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      setFeed(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setLoading(false);
-    }, () => setLoading(false));
-    return unsub;
-  }, [firebaseReady]);
-
-  const actionText = (type) => {
-    if (type === "read") return "okudu";
-    if (type === "reading") return "okuyor";
-    if (type === "wantToRead") return "okumak istiyor";
-    if (type === "rating") return "puanladı";
-    if (type === "review") return "yorum yaptı";
-    return "";
-  };
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 1000,
-      background: "rgba(15,23,42,0.5)", backdropFilter: "blur(4px)",
-      display: "flex", justifyContent: "center", alignItems: "flex-start",
-      padding: "40px 20px", overflowY: "auto"
-    }} onClick={onClose}>
-      <div style={{
-        background: "#ffffff", borderRadius: "16px", width: "100%", maxWidth: "560px",
-        boxShadow: "0 24px 48px rgba(0,0,0,0.15)", overflow: "hidden"
-      }} onClick={e => e.stopPropagation()}>
-        <div style={{
-          background: "linear-gradient(135deg, #1e3a8a, #1e40af)",
-          padding: "24px 28px", color: "#ffffff",
-          display: "flex", alignItems: "center", justifyContent: "space-between"
-        }}>
-          <div>
-            <div style={{ fontSize: "18px", fontWeight: 600 }}>🌐 Topluluk</div>
-            <div style={{ fontSize: "12px", opacity: 0.7 }}>Araştırmacıların okuma aktiviteleri</div>
-          </div>
-          <button onClick={onClose} style={{
-            background: "rgba(255,255,255,0.15)", border: "none", color: "#ffffff",
-            width: "32px", height: "32px", borderRadius: "8px", cursor: "pointer", fontSize: "14px"
-          }}>✕</button>
-        </div>
-
-        <div style={{ padding: "20px 28px", maxHeight: "60vh", overflowY: "auto" }}>
-          {loading && <div style={{ textAlign: "center", padding: "20px", color: "#94a3b8", fontSize: "13px" }}>Yükleniyor...</div>}
-
-          {!loading && feed.length === 0 && (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
-              <div style={{ fontSize: "32px", marginBottom: "8px" }}>🌱</div>
-              <div style={{ fontSize: "14px" }}>Henüz aktivite yok</div>
-              <div style={{ fontSize: "12px", marginTop: "4px" }}>Makale oku, puanla ve yorumla — aktivitelerin burada görünecek!</div>
-            </div>
-          )}
-
-          {feed.map(item => (
-            <div key={item.id} style={{
-              padding: "12px 14px", borderRadius: "10px", background: "#f8fafc",
-              border: "1px solid #e2e8f0", marginBottom: "8px",
-              display: "flex", gap: "10px", alignItems: "flex-start"
-            }}>
-              {item.userPhoto && (
-                <img src={item.userPhoto} alt="" style={{ width: "32px", height: "32px", borderRadius: "50%", flexShrink: 0 }} />
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: "13px", color: "#334155" }}>
-                  <strong>{item.userName || "Anonim"}</strong>{" "}
-                  <span style={{ color: "#64748b" }}>{actionText(item.type)}</span>
-                </div>
-                <div style={{ fontSize: "13px", fontWeight: 500, color: "#0f172a", marginTop: "2px" }}>
-                  {item.articleTitle}
-                </div>
-                {item.journalAbbr && (
-                  <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>{item.journalAbbr}</div>
-                )}
-                {item.rating > 0 && (
-                  <div style={{ marginTop: "4px" }}><StarRating rating={item.rating} readonly size={12} /></div>
-                )}
-                {item.text && (
-                  <div style={{ fontSize: "12px", color: "#475569", marginTop: "4px", lineHeight: 1.5 }}>
-                    "{item.text.length > 120 ? item.text.slice(0, 120) + "..." : item.text}"
-                  </div>
-                )}
-                <div style={{ fontSize: "10px", color: "#cbd5e1", marginTop: "4px" }}>
-                  {item.createdAt?.toDate ? new Date(item.createdAt.toDate()).toLocaleDateString("tr-TR") : ""}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// FIREBASE SETUP GUIDE
-// ──────────────────────────────────────────────
-function FirebaseSetupGuide({ onClose }) {
-  return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 1000,
-      background: "rgba(15,23,42,0.5)", backdropFilter: "blur(4px)",
-      display: "flex", justifyContent: "center", alignItems: "flex-start",
-      padding: "40px 20px", overflowY: "auto"
-    }} onClick={onClose}>
-      <div style={{
-        background: "#ffffff", borderRadius: "16px", width: "100%", maxWidth: "560px",
-        boxShadow: "0 24px 48px rgba(0,0,0,0.15)", overflow: "hidden"
-      }} onClick={e => e.stopPropagation()}>
-        <div style={{
-          background: "linear-gradient(135deg, #1e3a8a, #1e40af)",
-          padding: "24px 28px", color: "#ffffff",
-          display: "flex", alignItems: "center", justifyContent: "space-between"
-        }}>
-          <div style={{ fontSize: "18px", fontWeight: 600 }}>🔧 Firebase Kurulumu</div>
-          <button onClick={onClose} style={{
-            background: "rgba(255,255,255,0.15)", border: "none", color: "#ffffff",
-            width: "32px", height: "32px", borderRadius: "8px", cursor: "pointer", fontSize: "14px"
-          }}>✕</button>
-        </div>
-        <div style={{ padding: "24px 28px", fontSize: "13px", color: "#334155", lineHeight: 1.8 }}>
-          <p style={{ marginBottom: "16px" }}>
-            Sosyal özellikler (giriş yapma, puanlama, yorum, topluluk) için Firebase kurulumu gerekli:
-          </p>
-          <ol style={{ paddingLeft: "20px", marginBottom: "16px" }}>
-            <li style={{ marginBottom: "8px" }}><a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" style={{ color: "#1e40af" }}>Firebase Console</a>'a gidin ve yeni proje oluşturun</li>
-            <li style={{ marginBottom: "8px" }}><strong>Authentication</strong> &gt; Sign-in method &gt; <strong>Google</strong>'ı etkinleştirin</li>
-            <li style={{ marginBottom: "8px" }}><strong>Firestore Database</strong> oluşturun (test modunda başlayabilirsiniz)</li>
-            <li style={{ marginBottom: "8px" }}>Project Settings &gt; General &gt; Web App ekleyin</li>
-            <li style={{ marginBottom: "8px" }}>Firebase config değerlerini kopyalayın</li>
-            <li style={{ marginBottom: "8px" }}>Projenin kök dizininde <code style={{ background: "#f1f5f9", padding: "2px 6px", borderRadius: "4px" }}>.env</code> dosyası oluşturun:</li>
-          </ol>
-          <pre style={{
-            background: "#0f172a", color: "#e2e8f0", padding: "16px",
-            borderRadius: "8px", fontSize: "11px", overflowX: "auto", lineHeight: 1.7
-          }}>
-{`VITE_FIREBASE_API_KEY=AIzaSy...
-VITE_FIREBASE_AUTH_DOMAIN=proje-adi.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=proje-adi
-VITE_FIREBASE_STORAGE_BUCKET=proje-adi.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
-VITE_FIREBASE_APP_ID=1:123456789:web:abc123`}
-          </pre>
-          <p style={{ marginTop: "16px", color: "#64748b", fontSize: "12px" }}>
-            GitHub Pages için: repo Settings &gt; Secrets &gt; Actions'dan aynı değerleri ekleyin ve deploy.yml'i güncelleyin.
-          </p>
-          <p style={{ marginTop: "12px", fontSize: "12px", color: "#94a3b8" }}>
-            Firebase kurulmadan da dergi takibi ve makale keşfetme özellikleri çalışır. Sosyal özellikler sadece Firebase ile aktif olur.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// ARTICLE PANEL (with social features)
-// ──────────────────────────────────────────────
-function ArticlePanel({ journal, onClose, user, firebaseReady, userArticles, onArticleAction }) {
+function ArticlePanel({ journal, onClose, readingList, setReadingList }) {
   const [period, setPeriod] = useState("month");
   const [articles, setArticles] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [expandedAbstract, setExpandedAbstract] = useState(null);
-  const [showReviews, setShowReviews] = useState(null);
   const cacheRef = useRef({});
 
   const doFetch = useCallback(async (p) => {
@@ -912,6 +603,12 @@ function ArticlePanel({ journal, onClose, user, firebaseReady, userArticles, onA
   }, [period, doFetch]);
 
   const currentArticles = articles[period] || [];
+
+  const getArticleKey = (art) => {
+    if (art.doi) return art.doi.replace(/[./]/g, "_");
+    if (art.pmid) return `pmid_${art.pmid}`;
+    return `hash_${btoa(art.title.slice(0, 60)).replace(/[^a-zA-Z0-9]/g, "")}`;
+  };
 
   return (
     <div style={{
@@ -946,7 +643,6 @@ function ArticlePanel({ journal, onClose, user, firebaseReady, userArticles, onA
         ))}
       </div>
 
-      {/* Loading */}
       {loading && (
         <div style={{ padding: "30px 0", textAlign: "center" }}>
           <div style={{
@@ -959,7 +655,6 @@ function ArticlePanel({ journal, onClose, user, firebaseReady, userArticles, onA
         </div>
       )}
 
-      {/* Error */}
       {!loading && error && !currentArticles.length && (
         <div style={{ padding: "24px 0", textAlign: "center" }}>
           <div style={{ fontSize: "12px", color: "#dc2626", marginBottom: "8px" }}>{error}</div>
@@ -974,14 +669,11 @@ function ArticlePanel({ journal, onClose, user, firebaseReady, userArticles, onA
         </div>
       )}
 
-      {/* Articles */}
       {!loading && currentArticles.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "70vh", overflowY: "auto", paddingRight: "4px" }}>
           {currentArticles.map((art, i) => {
             const isAbstractOpen = expandedAbstract === i;
-            const isReviewsOpen = showReviews === i;
-            const aId = articleId(art);
-            const userArt = userArticles[aId];
+            const artKey = getArticleKey(art);
 
             return (
               <div key={art.pmid || i} style={{
@@ -1008,33 +700,14 @@ function ArticlePanel({ journal, onClose, user, firebaseReady, userArticles, onA
                       {art.citation && <span style={{ color: "#94a3b8" }}> · {art.citation}</span>}
                     </div>
 
-                    {/* Social action row */}
-                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "8px" }}>
-                      {/* Shelf button */}
-                      {(user || !firebaseReady) && (
-                        <ShelfButton
-                          compact
-                          currentShelf={userArt?.shelf || null}
-                          onSetShelf={(shelf) => onArticleAction(aId, { ...art, journalAbbr: journal.abbr }, "shelf", shelf)}
-                        />
-                      )}
-
-                      {/* Star rating */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                        <StarRating
-                          rating={userArt?.rating || 0}
-                          onRate={(r) => onArticleAction(aId, { ...art, journalAbbr: journal.abbr }, "rate", r)}
-                          size={15}
-                          readonly={!user && firebaseReady}
-                        />
-                        {userArt?.rating > 0 && (
-                          <span style={{ fontSize: "11px", color: "#F59E0B", fontWeight: 600 }}>{userArt.rating}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Abstract toggle */}
-                    <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", marginBottom: "4px" }}>
+                    {/* Reading list + Abstract toggle */}
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", marginBottom: "4px" }}>
+                      <ReadingListButton
+                        articleKey={artKey}
+                        readingList={readingList}
+                        setReadingList={setReadingList}
+                        artData={{ title: art.title, authors: art.authors, journalAbbr: journal.abbr, doi: art.doi, pmid: art.pmid, year: art.year }}
+                      />
                       {art.abstract && (
                         <button
                           onClick={e => { e.stopPropagation(); setExpandedAbstract(isAbstractOpen ? null : i); }}
@@ -1048,28 +721,16 @@ function ArticlePanel({ journal, onClose, user, firebaseReady, userArticles, onA
                           {isAbstractOpen ? "▾ Abstract'ı Gizle" : "▸ Abstract'ı Göster"}
                         </button>
                       )}
-                      {firebaseReady && (
-                        <button
-                          onClick={e => { e.stopPropagation(); setShowReviews(isReviewsOpen ? null : i); }}
-                          style={{
-                            fontSize: "11px", color: isReviewsOpen ? "#1e40af" : "#64748b",
-                            background: isReviewsOpen ? "#eff6ff" : "transparent",
-                            border: "none", cursor: "pointer", padding: "3px 8px", borderRadius: "4px",
-                            fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s"
-                          }}
-                        >
-                          {isReviewsOpen ? "▾ Tartışmayı Gizle" : "💬 Tartışma"}
-                        </button>
-                      )}
                     </div>
 
-                    {/* Abstract content */}
+                    <ArticleNotes articleKey={artKey} readingList={readingList} setReadingList={setReadingList} />
+
                     {isAbstractOpen && art.abstract && (
                       <div style={{
                         fontSize: "12px", color: "#334155", lineHeight: 1.7,
                         padding: "10px 12px", borderRadius: "8px",
                         background: "#f1f5f9", border: "1px solid #e2e8f0",
-                        marginBottom: "6px", whiteSpace: "pre-wrap"
+                        marginTop: "6px", marginBottom: "6px", whiteSpace: "pre-wrap"
                       }}>
                         {art.abstract}
                       </div>
@@ -1079,11 +740,6 @@ function ArticlePanel({ journal, onClose, user, firebaseReady, userArticles, onA
                       <div style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic", marginBottom: "4px" }}>
                         Abstract mevcut değil
                       </div>
-                    )}
-
-                    {/* Review section */}
-                    {isReviewsOpen && firebaseReady && (
-                      <ReviewSection artId={aId} user={user} firebaseReady={firebaseReady} />
                     )}
 
                     {/* Links */}
@@ -1135,141 +791,281 @@ function ArticlePanel({ journal, onClose, user, firebaseReady, userArticles, onA
 }
 
 // ──────────────────────────────────────────────
+// WIZARD COMPONENT
+// ──────────────────────────────────────────────
+function JournalWizard() {
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState({});
+  const [showResults, setShowResults] = useState(false);
+
+  const currentStep = wizardSteps[step];
+  const progress = ((step + 1) / wizardSteps.length) * 100;
+
+  const selectOption = (value) => {
+    const newAnswers = { ...answers, [currentStep.id]: value };
+    setAnswers(newAnswers);
+    if (step < wizardSteps.length - 1) {
+      setStep(step + 1);
+    } else {
+      setShowResults(true);
+    }
+  };
+
+  const results = useMemo(() => {
+    if (!showResults) return [];
+    return journals
+      .map(j => ({ ...j, score: scoreJournal(j, answers) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5);
+  }, [showResults, answers]);
+
+  const reset = () => {
+    setStep(0);
+    setAnswers({});
+    setShowResults(false);
+  };
+
+  if (showResults) {
+    return (
+      <div>
+        <div style={{
+          background: "linear-gradient(135deg, #1e3a8a, #7c3aed)", borderRadius: "16px",
+          padding: "28px 32px", color: "#ffffff", marginBottom: "20px"
+        }}>
+          <div style={{ fontSize: "22px", fontWeight: 600, marginBottom: "6px" }}>Size Uygun Dergiler</div>
+          <div style={{ fontSize: "13px", opacity: 0.8, marginBottom: "16px" }}>
+            Cevaplarınıza göre en uygun 5 dergi
+          </div>
+          <button onClick={reset} style={{
+            padding: "8px 18px", borderRadius: "8px",
+            background: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.3)",
+            color: "#ffffff", fontSize: "12px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif"
+          }}>
+            Tekrar Dene
+          </button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {results.map((j, i) => (
+            <div key={j.id} style={{
+              background: "#ffffff", borderRadius: "14px", padding: "20px 24px",
+              border: "1px solid #e2e8f0", display: "flex", gap: "16px", alignItems: "flex-start",
+              transition: "border-color 0.2s"
+            }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = "#93c5fd"}
+              onMouseLeave={e => e.currentTarget.style.borderColor = "#e2e8f0"}
+            >
+              <div style={{
+                width: "48px", height: "48px", borderRadius: "12px", flexShrink: 0,
+                background: `linear-gradient(135deg, ${j.color}20, ${j.color}40)`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: "18px", fontWeight: 800, color: j.color
+              }}>#{i + 1}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "4px" }}>
+                  <span style={{ fontSize: "16px", fontWeight: 600, color: "#0f172a" }}>{j.name}</span>
+                  <span style={{
+                    fontSize: "11px", padding: "2px 8px", borderRadius: "6px",
+                    background: j.score >= 70 ? "#dcfce7" : j.score >= 50 ? "#fef3c7" : "#fee2e2",
+                    color: j.score >= 70 ? "#166534" : j.score >= 50 ? "#92400e" : "#991b1b",
+                    fontWeight: 700
+                  }}>%{j.score} uyum</span>
+                </div>
+                <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "6px" }}>
+                  {j.abbr} · IF {j.if2024} · {j.quartile} · {j.field}
+                  {j.openAccess && <span style={{ color: "#22C55E", fontWeight: 600 }}> · OA</span>}
+                </div>
+                <div style={{
+                  fontSize: "12px", color: "#475569", lineHeight: 1.5,
+                  padding: "8px 12px", borderRadius: "8px", background: "#f8fafc",
+                  borderLeft: `3px solid ${j.color}`
+                }}>
+                  {getWizardReasoning(j, answers)}
+                </div>
+                <div style={{ marginTop: "8px" }}>
+                  <a href={j.url} target="_blank" rel="noopener noreferrer"
+                    style={{
+                      fontSize: "12px", color: "#ffffff", textDecoration: "none",
+                      display: "inline-flex", alignItems: "center", gap: "6px",
+                      padding: "6px 14px", borderRadius: "6px",
+                      background: j.color, transition: "opacity 0.2s"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
+                    onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+                  >
+                    Dergiye Git →
+                  </a>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Progress */}
+      <div style={{
+        background: "linear-gradient(135deg, #1e3a8a, #7c3aed)", borderRadius: "16px",
+        padding: "28px 32px", color: "#ffffff", marginBottom: "24px"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <div style={{ fontSize: "22px", fontWeight: 600 }}>Dergi Seçim Wizard'ı</div>
+          <div style={{ fontSize: "13px", opacity: 0.8 }}>Adım {step + 1} / {wizardSteps.length}</div>
+        </div>
+        <div style={{ height: "4px", borderRadius: "2px", background: "rgba(255,255,255,0.2)" }}>
+          <div style={{ height: "100%", borderRadius: "2px", background: "#ffffff", width: `${progress}%`, transition: "width 0.3s ease" }} />
+        </div>
+      </div>
+
+      {/* Question */}
+      <div style={{ marginBottom: "20px" }}>
+        <div style={{ fontSize: "20px", fontWeight: 600, color: "#0f172a", marginBottom: "16px" }}>
+          {currentStep.question}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "10px" }}>
+          {currentStep.options.map(opt => (
+            <button key={opt.value} onClick={() => selectOption(opt.value)}
+              style={{
+                padding: "16px 20px", borderRadius: "12px", border: "1px solid",
+                borderColor: answers[currentStep.id] === opt.value ? "#1e40af" : "#e2e8f0",
+                background: answers[currentStep.id] === opt.value ? "#eff6ff" : "#ffffff",
+                color: "#0f172a", cursor: "pointer", textAlign: "left",
+                transition: "all 0.15s", fontFamily: "'DM Sans', sans-serif"
+              }}
+              onMouseEnter={e => { if (answers[currentStep.id] !== opt.value) e.currentTarget.style.borderColor = "#93c5fd"; }}
+              onMouseLeave={e => { if (answers[currentStep.id] !== opt.value) e.currentTarget.style.borderColor = "#e2e8f0"; }}
+            >
+              <div style={{ fontSize: "14px", fontWeight: 600, marginBottom: "2px" }}>{opt.label}</div>
+              {opt.desc && <div style={{ fontSize: "12px", color: "#64748b" }}>{opt.desc}</div>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Back button */}
+      {step > 0 && (
+        <button onClick={() => setStep(step - 1)} style={{
+          padding: "8px 18px", borderRadius: "8px",
+          background: "transparent", border: "1px solid #cbd5e1",
+          color: "#64748b", fontSize: "12px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif"
+        }}>
+          ← Geri
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// READING LIST PANEL
+// ──────────────────────────────────────────────
+function ReadingListPanel({ readingList, setReadingList }) {
+  const grouped = useMemo(() => {
+    const result = { okunacak: [], okunuyor: [], okundu: [] };
+    Object.entries(readingList).forEach(([id, art]) => {
+      if (art.status && result[art.status]) {
+        result[art.status].push({ id, ...art });
+      }
+    });
+    Object.keys(result).forEach(key => {
+      result[key].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    });
+    return result;
+  }, [readingList]);
+
+  const total = Object.values(grouped).reduce((s, arr) => s + arr.length, 0);
+
+  if (total === 0) return null;
+
+  return (
+    <div style={{
+      marginBottom: "20px", padding: "16px 20px", borderRadius: "12px",
+      background: "#ffffff", border: "1px solid #e2e8f0"
+    }}>
+      <div style={{ fontSize: "14px", fontWeight: 600, color: "#0f172a", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+        📚 Okuma Listem
+      </div>
+      <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
+        {Object.entries(READING_STATUSES).map(([key, s]) => {
+          const count = grouped[key]?.length || 0;
+          return (
+            <div key={key} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ fontSize: "14px" }}>{s.icon}</span>
+              <span style={{ fontSize: "13px", color: "#334155" }}>{s.label}:</span>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: s.color }}>{count}</span>
+            </div>
+          );
+        })}
+      </div>
+      {/* Recent items */}
+      {Object.entries(READING_STATUSES).map(([key, s]) => {
+        const items = grouped[key];
+        if (!items || items.length === 0) return null;
+        return (
+          <div key={key} style={{ marginTop: "12px" }}>
+            <div style={{ fontSize: "12px", fontWeight: 600, color: s.color, marginBottom: "6px" }}>{s.icon} {s.label} ({items.length})</div>
+            {items.slice(0, 3).map(art => (
+              <div key={art.id} style={{
+                padding: "8px 12px", borderRadius: "8px",
+                background: "#f8fafc", marginBottom: "4px",
+                display: "flex", alignItems: "center", gap: "10px"
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "12px", fontWeight: 500, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {art.title}
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#64748b" }}>
+                    {art.authors} {art.journalAbbr && `· ${art.journalAbbr}`}
+                  </div>
+                  {art.notes && <div style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic", marginTop: "2px" }}>📝 {art.notes.slice(0, 50)}{art.notes.length > 50 ? "..." : ""}</div>}
+                </div>
+                <button onClick={() => setReadingList(prev => { const next = { ...prev }; delete next[art.id]; return next; })}
+                  style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "12px", flexShrink: 0 }}>✕</button>
+              </div>
+            ))}
+            {items.length > 3 && <div style={{ fontSize: "11px", color: "#94a3b8", paddingLeft: "12px" }}>+{items.length - 3} daha</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
 // MAIN COMPONENT
 // ──────────────────────────────────────────────
 export default function GenetikDergiTakip() {
-  const { user, loading: authLoading, login, logout, firebaseReady } = useAuth();
-
   const [selectedQuartiles, setSelectedQuartiles] = useState([]);
   const [selectedField, setSelectedField] = useState(null);
   const [selectedTags, setSelectedTags] = useState([]);
   const [search, setSearch] = useState("");
-  const [bookmarks, setBookmarks] = useState([]);
+  const [bookmarks, setBookmarks] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("genetik_bookmarks") || "[]"); } catch { return []; }
+  });
   const [expandedId, setExpandedId] = useState(null);
   const [articlePanelId, setArticlePanelId] = useState(null);
   const [sortBy, setSortBy] = useState("quartile");
   const [ifRange, setIfRange] = useState([0, 50]);
   const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState("discover");
 
-  // Social state
-  const [userArticles, setUserArticles] = useState({}); // { articleId: { shelf, rating, title, authors, ... } }
-  const [showProfile, setShowProfile] = useState(false);
-  const [showCommunity, setShowCommunity] = useState(false);
-  const [showSetupGuide, setShowSetupGuide] = useState(false);
-  const [activeTab, setActiveTab] = useState("discover"); // discover | library
+  const [readingList, setReadingList] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("genetik_reading_list") || "{}"); } catch { return {}; }
+  });
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Load user articles from Firestore
   useEffect(() => {
-    if (!firebaseReady || !user) {
-      // Load from localStorage as fallback
-      try {
-        const saved = localStorage.getItem("genetik_user_articles");
-        if (saved) setUserArticles(JSON.parse(saved));
-      } catch {}
-      return;
-    }
+    localStorage.setItem("genetik_bookmarks", JSON.stringify(bookmarks));
+  }, [bookmarks]);
 
-    const q = query(
-      collection(db, "userArticles"),
-      where("userId", "==", user.uid)
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const arts = {};
-      snap.docs.forEach(d => {
-        const data = d.data();
-        arts[data.articleId] = data;
-      });
-      setUserArticles(arts);
-    });
-    return unsub;
-  }, [user, firebaseReady]);
-
-  // Save to localStorage as fallback
   useEffect(() => {
-    if (!firebaseReady || !user) {
-      try {
-        localStorage.setItem("genetik_user_articles", JSON.stringify(userArticles));
-      } catch {}
-    }
-  }, [userArticles, firebaseReady, user]);
-
-  // Handle article actions (shelf, rate)
-  const handleArticleAction = useCallback(async (aId, artData, action, value) => {
-    const existing = userArticles[aId] || {};
-
-    if (firebaseReady && user) {
-      // Save to Firestore
-      const docId = `${user.uid}_${aId}`;
-      const updates = {
-        articleId: aId,
-        userId: user.uid,
-        title: artData.title,
-        authors: artData.authors,
-        journalAbbr: artData.journalAbbr || "",
-        updatedAt: serverTimestamp(),
-      };
-
-      if (action === "shelf") {
-        updates.shelf = value;
-        if (!value) {
-          // Remove from shelf but keep rating if exists
-          if (!existing.rating) {
-            await deleteDoc(doc(db, "userArticles", docId));
-            // Post activity
-          } else {
-            await setDoc(doc(db, "userArticles", docId), { ...existing, ...updates, shelf: null }, { merge: true });
-          }
-        } else {
-          await setDoc(doc(db, "userArticles", docId), { ...existing, ...updates }, { merge: true });
-          // Post activity
-          const actId = `${user.uid}_${aId}_${value}_${Date.now()}`;
-          await setDoc(doc(db, "activity", actId), {
-            type: value,
-            userId: user.uid,
-            userName: user.displayName || "Anonim",
-            userPhoto: user.photoURL || "",
-            articleId: aId,
-            articleTitle: artData.title,
-            journalAbbr: artData.journalAbbr || "",
-            createdAt: serverTimestamp(),
-          });
-        }
-      } else if (action === "rate") {
-        updates.rating = value;
-        await setDoc(doc(db, "userArticles", docId), { ...existing, ...updates }, { merge: true });
-        // Post rating activity
-        const actId = `${user.uid}_${aId}_rating_${Date.now()}`;
-        await setDoc(doc(db, "activity", actId), {
-          type: "rating",
-          userId: user.uid,
-          userName: user.displayName || "Anonim",
-          userPhoto: user.photoURL || "",
-          articleId: aId,
-          articleTitle: artData.title,
-          journalAbbr: artData.journalAbbr || "",
-          rating: value,
-          createdAt: serverTimestamp(),
-        });
-      }
-    } else {
-      // localStorage fallback
-      setUserArticles(prev => {
-        const updated = { ...prev };
-        if (action === "shelf") {
-          if (!value && !existing.rating) {
-            delete updated[aId];
-          } else {
-            updated[aId] = { ...existing, ...artData, shelf: value, updatedAt: Date.now() };
-          }
-        } else if (action === "rate") {
-          updated[aId] = { ...existing, ...artData, rating: value, updatedAt: Date.now() };
-        }
-        return updated;
-      });
-    }
-  }, [user, firebaseReady, userArticles]);
+    localStorage.setItem("genetik_reading_list", JSON.stringify(readingList));
+  }, [readingList]);
 
   const toggleQuartile = (q) => setSelectedQuartiles(prev => prev.includes(q) ? prev.filter(x => x !== q) : [...prev, q]);
   const toggleTag = (tag) => setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -1291,22 +1087,7 @@ export default function GenetikDergiTakip() {
       return quartileOrder[a.quartile] - quartileOrder[b.quartile] || b.if2024 - a.if2024;
     });
 
-  // Library view data
-  const libraryArticles = useMemo(() => {
-    const result = { read: [], reading: [], wantToRead: [] };
-    Object.entries(userArticles).forEach(([id, art]) => {
-      if (art.shelf && result[art.shelf]) {
-        result[art.shelf].push({ id, ...art });
-      }
-    });
-    // Sort by most recently updated
-    Object.keys(result).forEach(key => {
-      result[key].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    });
-    return result;
-  }, [userArticles]);
-
-  const totalLibrary = Object.values(libraryArticles).reduce((s, arr) => s + arr.length, 0);
+  const readingListTotal = Object.keys(readingList).length;
 
   return (
     <div style={{
@@ -1323,90 +1104,27 @@ export default function GenetikDergiTakip() {
       {/* Header */}
       <div style={{ padding: "28px 32px 20px", position: "relative", zIndex: 1, borderBottom: "1px solid rgba(30,58,138,0.1)", background: "linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%)" }}>
         <div style={{ maxWidth: "960px", margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: "12px", marginBottom: "6px" }}>
-                <span style={{ fontSize: "11px", letterSpacing: "4px", textTransform: "uppercase", color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>Tıbbi Genetik</span>
-                <span style={{ width: "40px", height: "1px", background: "linear-gradient(90deg, rgba(255,255,255,0.4), transparent)", display: "inline-block", verticalAlign: "middle" }} />
-              </div>
-              <h1 style={{
-                fontFamily: "'Instrument Serif', Georgia, serif", fontSize: "clamp(28px, 5vw, 42px)",
-                fontWeight: 400, fontStyle: "italic", color: "#ffffff", margin: "8px 0 8px", lineHeight: 1.1, letterSpacing: "-0.5px"
-              }}>
-                Dergi Takip Rehberi
-              </h1>
-              <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px", maxWidth: "460px", lineHeight: 1.5, margin: 0 }}>
-                Makale keşfet, puanla, yorumla ve toplulukla paylaş.
-              </p>
+          <div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "12px", marginBottom: "6px" }}>
+              <span style={{ fontSize: "11px", letterSpacing: "4px", textTransform: "uppercase", color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>Tıbbi Genetik</span>
+              <span style={{ width: "40px", height: "1px", background: "linear-gradient(90deg, rgba(255,255,255,0.4), transparent)", display: "inline-block", verticalAlign: "middle" }} />
             </div>
-
-            {/* Auth section */}
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
-              {!firebaseReady ? (
-                <button onClick={() => setShowSetupGuide(true)} style={{
-                  padding: "8px 16px", borderRadius: "8px",
-                  background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)",
-                  color: "#ffffff", fontSize: "12px", cursor: "pointer",
-                  fontFamily: "'DM Sans', sans-serif", display: "flex", alignItems: "center", gap: "6px"
-                }}>
-                  🔧 Firebase Kur
-                </button>
-              ) : authLoading ? (
-                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>...</div>
-              ) : user ? (
-                <>
-                  <button onClick={() => setShowCommunity(true)} style={{
-                    padding: "8px 14px", borderRadius: "8px",
-                    background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)",
-                    color: "#ffffff", fontSize: "12px", cursor: "pointer",
-                    fontFamily: "'DM Sans', sans-serif"
-                  }}>
-                    🌐 Topluluk
-                  </button>
-                  <button onClick={() => setShowProfile(true)} style={{
-                    display: "flex", alignItems: "center", gap: "8px",
-                    padding: "6px 12px 6px 6px", borderRadius: "10px",
-                    background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.2)",
-                    color: "#ffffff", fontSize: "12px", cursor: "pointer",
-                    fontFamily: "'DM Sans', sans-serif"
-                  }}>
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt="" style={{ width: "26px", height: "26px", borderRadius: "50%" }} />
-                    ) : (
-                      <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: "rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px" }}>👤</div>
-                    )}
-                    {user.displayName?.split(" ")[0] || "Profil"}
-                  </button>
-                  <button onClick={logout} style={{
-                    padding: "8px 12px", borderRadius: "8px",
-                    background: "transparent", border: "1px solid rgba(255,255,255,0.2)",
-                    color: "rgba(255,255,255,0.7)", fontSize: "11px", cursor: "pointer",
-                    fontFamily: "'DM Sans', sans-serif"
-                  }}>
-                    Çıkış
-                  </button>
-                </>
-              ) : (
-                <button onClick={login} style={{
-                  padding: "10px 20px", borderRadius: "10px",
-                  background: "#ffffff", border: "none",
-                  color: "#1e40af", fontSize: "13px", fontWeight: 600, cursor: "pointer",
-                  fontFamily: "'DM Sans', sans-serif",
-                  display: "flex", alignItems: "center", gap: "8px",
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
-                }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                  Google ile Giriş Yap
-                </button>
-              )}
-            </div>
+            <h1 style={{
+              fontFamily: "'Instrument Serif', Georgia, serif", fontSize: "clamp(28px, 5vw, 42px)",
+              fontWeight: 400, fontStyle: "italic", color: "#ffffff", margin: "8px 0 8px", lineHeight: 1.1, letterSpacing: "-0.5px"
+            }}>
+              Dergi Takip Rehberi
+            </h1>
+            <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px", maxWidth: "460px", lineHeight: 1.5, margin: 0 }}>
+              Kişisel araştırma asistanı — dergi keşfi, makale takibi ve akıllı dergi seçimi.
+            </p>
           </div>
 
           {/* Tab navigation */}
           <div style={{ display: "flex", gap: "4px", marginTop: "16px" }}>
             {[
               { key: "discover", label: "Keşfet", icon: "🔬", count: journals.length },
-              { key: "library", label: "Kütüphanem", icon: "📚", count: totalLibrary },
+              { key: "wizard", label: "Dergi Wizard", icon: "🧭", count: null },
             ].map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
                 padding: "8px 18px", borderRadius: "8px 8px 0 0", border: "none",
@@ -1418,11 +1136,13 @@ export default function GenetikDergiTakip() {
                 transition: "all 0.2s"
               }}>
                 {tab.icon} {tab.label}
-                <span style={{
-                  fontSize: "10px", padding: "1px 6px", borderRadius: "10px",
-                  background: activeTab === tab.key ? "#eff6ff" : "rgba(255,255,255,0.15)",
-                  color: activeTab === tab.key ? "#1e40af" : "rgba(255,255,255,0.7)"
-                }}>{tab.count}</span>
+                {tab.count != null && (
+                  <span style={{
+                    fontSize: "10px", padding: "1px 6px", borderRadius: "10px",
+                    background: activeTab === tab.key ? "#eff6ff" : "rgba(255,255,255,0.15)",
+                    color: activeTab === tab.key ? "#1e40af" : "rgba(255,255,255,0.7)"
+                  }}>{tab.count}</span>
+                )}
               </button>
             ))}
           </div>
@@ -1434,6 +1154,8 @@ export default function GenetikDergiTakip() {
         {/* ═══════ DISCOVER TAB ═══════ */}
         {activeTab === "discover" && (
           <>
+            <ReadingListPanel readingList={readingList} setReadingList={setReadingList} />
+
             {/* Research Field Selector */}
             <div style={{ marginBottom: "16px" }}>
               <div style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: "8px", fontWeight: 500 }}>Araştırma Alanı</div>
@@ -1576,6 +1298,7 @@ export default function GenetikDergiTakip() {
                         <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
                           <span style={{ fontSize: "15px", fontWeight: 600, color: "#0f172a" }}>{j.abbr}</span>
                           <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 400 }}>{j.name}</span>
+                          {j.openAccess && <span style={{ fontSize: "9px", padding: "1px 6px", borderRadius: "4px", background: "#dcfce7", color: "#166534", fontWeight: 600 }}>OA</span>}
                         </div>
                         <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                           <span>{j.focus}</span>
@@ -1661,10 +1384,8 @@ export default function GenetikDergiTakip() {
                           <ArticlePanel
                             journal={j}
                             onClose={() => setArticlePanelId(null)}
-                            user={user}
-                            firebaseReady={firebaseReady}
-                            userArticles={userArticles}
-                            onArticleAction={handleArticleAction}
+                            readingList={readingList}
+                            setReadingList={setReadingList}
                           />
                         )}
                       </div>
@@ -1682,105 +1403,9 @@ export default function GenetikDergiTakip() {
           </>
         )}
 
-        {/* ═══════ LIBRARY TAB ═══════ */}
-        {activeTab === "library" && (
-          <div>
-            {totalLibrary === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 20px" }}>
-                <div style={{ fontSize: "48px", marginBottom: "16px" }}>📚</div>
-                <div style={{ fontSize: "18px", fontWeight: 600, color: "#334155", marginBottom: "8px" }}>Kütüphaneniz boş</div>
-                <div style={{ fontSize: "14px", color: "#64748b", maxWidth: "400px", margin: "0 auto", lineHeight: 1.6 }}>
-                  Keşfet sekmesinden dergileri açın, makaleleri keşfet butonuna tıklayın ve beğendiğiniz makaleleri raflarınıza ekleyin.
-                </div>
-                <button onClick={() => setActiveTab("discover")} style={{
-                  marginTop: "20px", padding: "10px 24px", borderRadius: "10px",
-                  background: "#1e40af", color: "#ffffff", border: "none",
-                  fontSize: "13px", fontWeight: 500, cursor: "pointer",
-                  fontFamily: "'DM Sans', sans-serif"
-                }}>
-                  🔬 Keşfetmeye Başla
-                </button>
-              </div>
-            ) : (
-              <div>
-                {/* Reading stats */}
-                <div style={{ display: "flex", gap: "12px", marginBottom: "24px", flexWrap: "wrap" }}>
-                  {Object.entries(SHELVES).map(([key, shelf]) => {
-                    const count = libraryArticles[key]?.length || 0;
-                    return (
-                      <div key={key} style={{
-                        flex: "1 1 150px", padding: "16px 20px", borderRadius: "12px",
-                        background: "#ffffff", border: `1px solid ${shelf.color}30`,
-                        display: "flex", alignItems: "center", gap: "12px"
-                      }}>
-                        <div style={{
-                          width: "40px", height: "40px", borderRadius: "10px",
-                          background: `${shelf.color}15`, display: "flex",
-                          alignItems: "center", justifyContent: "center", fontSize: "20px"
-                        }}>{shelf.icon}</div>
-                        <div>
-                          <div style={{ fontSize: "22px", fontWeight: 700, color: shelf.color }}>{count}</div>
-                          <div style={{ fontSize: "12px", color: "#64748b" }}>{shelf.label}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Shelf sections */}
-                {Object.entries(SHELVES).map(([key, shelf]) => {
-                  const articles = libraryArticles[key];
-                  if (!articles || articles.length === 0) return null;
-                  return (
-                    <div key={key} style={{ marginBottom: "28px" }}>
-                      <div style={{
-                        fontSize: "15px", fontWeight: 600, color: shelf.color,
-                        marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px",
-                        paddingBottom: "8px", borderBottom: `2px solid ${shelf.color}20`
-                      }}>
-                        {shelf.icon} {shelf.label}
-                        <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: 400 }}>({articles.length})</span>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        {articles.map(art => (
-                          <div key={art.id} style={{
-                            padding: "14px 18px", borderRadius: "10px",
-                            background: "#ffffff", border: "1px solid #e2e8f0",
-                            display: "flex", alignItems: "center", gap: "12px",
-                            transition: "border-color 0.2s"
-                          }}
-                            onMouseEnter={e => e.currentTarget.style.borderColor = "#93c5fd"}
-                            onMouseLeave={e => e.currentTarget.style.borderColor = "#e2e8f0"}
-                          >
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: "14px", fontWeight: 500, color: "#0f172a", lineHeight: 1.4 }}>
-                                {art.title}
-                              </div>
-                              <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
-                                {art.authors} {art.journalAbbr && `· ${art.journalAbbr}`}
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
-                              <StarRating
-                                rating={art.rating || 0}
-                                onRate={(r) => handleArticleAction(art.id, art, "rate", r)}
-                                size={15}
-                              />
-                              <ShelfButton
-                                compact
-                                currentShelf={art.shelf}
-                                onSetShelf={(s) => handleArticleAction(art.id, art, "shelf", s)}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+        {/* ═══════ WIZARD TAB ═══════ */}
+        {activeTab === "wizard" && (
+          <JournalWizard />
         )}
 
         <div style={{
@@ -1788,20 +1413,9 @@ export default function GenetikDergiTakip() {
           fontSize: "11px", color: "#94a3b8", textAlign: "center", lineHeight: 1.8
         }}>
           IF değerleri 2024 JCR verilerine, quartile bilgileri Genetics &amp; Heredity kategorisine dayanmaktadır. Makale verileri PubMed ve CrossRef API'lerinden gerçek zamanlı olarak çekilmektedir.
-          <br />Tıbbi Genetik Dergi Takip Rehberi — {journals.length} dergi
+          <br />Tıbbi Genetik Dergi Takip Rehberi — {journals.length} dergi · Kişisel Araştırma Asistanı
         </div>
       </div>
-
-      {/* Modals */}
-      {showProfile && user && (
-        <ProfilePanel user={user} userArticles={userArticles} onClose={() => setShowProfile(false)} />
-      )}
-      {showCommunity && (
-        <CommunityFeed firebaseReady={firebaseReady} onClose={() => setShowCommunity(false)} />
-      )}
-      {showSetupGuide && (
-        <FirebaseSetupGuide onClose={() => setShowSetupGuide(false)} />
-      )}
     </div>
   );
 }
