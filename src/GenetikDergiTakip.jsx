@@ -150,13 +150,21 @@ function parseArticlesFromXml(xmlText, expectedSource) {
     const pmid = medline?.querySelector("PMID")?.textContent || "";
     const title = article?.querySelector("ArticleTitle")?.textContent || "Başlık yok";
 
-    // Get abstract
-    const abstractParts = article?.querySelectorAll("Abstract AbstractText") || [];
+    // Get abstract — try AbstractText children first, fall back to Abstract node text
+    const abstractNode = article?.getElementsByTagName("Abstract")?.[0];
     let abstract = "";
-    for (const part of abstractParts) {
-      const label = part.getAttribute("Label");
-      if (label) abstract += `**${label}**: `;
-      abstract += part.textContent + "\n\n";
+    if (abstractNode) {
+      const abstractTexts = abstractNode.getElementsByTagName("AbstractText");
+      if (abstractTexts.length > 0) {
+        for (let k = 0; k < abstractTexts.length; k++) {
+          const part = abstractTexts[k];
+          const label = part.getAttribute("Label");
+          if (label) abstract += label + ": ";
+          abstract += part.textContent + "\n\n";
+        }
+      } else {
+        abstract = abstractNode.textContent || "";
+      }
     }
     abstract = abstract.trim();
 
@@ -325,28 +333,27 @@ function ArticlePanel({ journal, onClose }) {
   return (
     <div style={{
       marginTop: "16px", padding: "20px", borderRadius: "12px",
-      background: "rgba(0,0,0,0.3)", border: `1px solid ${journal.color}25`,
-      backdropFilter: "blur(10px)"
+      background: "#f8fafc", border: `1px solid #e2e8f0`
     }} onClick={e => e.stopPropagation()}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-        <div style={{ fontSize: "13px", fontWeight: 600, color: "#F3F4F6", display: "flex", alignItems: "center", gap: "8px" }}>
+        <div style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
           <span style={{ fontSize: "16px" }}>📄</span>
           Makaleler — <span style={{ color: journal.color }}>{journal.abbr}</span>
-          {currentArticles.length > 0 && <span style={{ fontSize: "11px", color: "#6B7280", fontWeight: 400 }}> ({currentArticles.length} makale)</span>}
+          {currentArticles.length > 0 && <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 400 }}> ({currentArticles.length} makale)</span>}
         </div>
         <button onClick={onClose} style={{
-          background: "rgba(255,255,255,0.06)", border: "none", color: "#9CA3AF",
+          background: "#f1f5f9", border: "1px solid #e2e8f0", color: "#64748b",
           width: "24px", height: "24px", borderRadius: "6px", cursor: "pointer", fontSize: "12px"
         }}>✕</button>
       </div>
 
       {/* Period tabs */}
-      <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "rgba(255,255,255,0.03)", borderRadius: "8px", padding: "3px" }}>
+      <div style={{ display: "flex", gap: "4px", marginBottom: "16px", background: "#e2e8f0", borderRadius: "8px", padding: "3px" }}>
         {Object.entries(periodLabels).map(([key, label]) => (
           <button key={key} onClick={() => setPeriod(key)} style={{
             flex: 1, padding: "7px 10px", borderRadius: "6px", border: "none",
-            background: period === key ? `${journal.color}25` : "transparent",
-            color: period === key ? "#F3F4F6" : "#6B7280",
+            background: period === key ? "#1e40af" : "transparent",
+            color: period === key ? "#ffffff" : "#64748b",
             fontSize: "12px", fontWeight: period === key ? 600 : 400,
             cursor: "pointer", transition: "all 0.2s ease",
             fontFamily: "'DM Sans', sans-serif"
@@ -360,12 +367,12 @@ function ArticlePanel({ journal, onClose }) {
       {loading && (
         <div style={{ padding: "30px 0", textAlign: "center" }}>
           <div style={{
-            width: "28px", height: "28px", border: `2px solid ${journal.color}30`,
-            borderTopColor: journal.color, borderRadius: "50%", margin: "0 auto 12px",
+            width: "28px", height: "28px", border: "2px solid #cbd5e1",
+            borderTopColor: "#1e40af", borderRadius: "50%", margin: "0 auto 12px",
             animation: "spin 0.8s linear infinite"
           }} />
           <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
-          <div style={{ fontSize: "12px", color: "#6B7280" }}>
+          <div style={{ fontSize: "12px", color: "#64748b" }}>
             PubMed'den makaleler yükleniyor...
           </div>
         </div>
@@ -374,12 +381,12 @@ function ArticlePanel({ journal, onClose }) {
       {/* Error */}
       {!loading && error && !currentArticles.length && (
         <div style={{ padding: "24px 0", textAlign: "center" }}>
-          <div style={{ fontSize: "12px", color: "#F87171", marginBottom: "8px" }}>{error}</div>
+          <div style={{ fontSize: "12px", color: "#dc2626", marginBottom: "8px" }}>{error}</div>
           <button onClick={() => { delete cacheRef.current[period]; doFetch(period); }}
             style={{
               fontSize: "11px", padding: "6px 14px", borderRadius: "6px", cursor: "pointer",
-              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-              color: "#9CA3AF", fontFamily: "'DM Sans', sans-serif"
+              background: "#ffffff", border: "1px solid #cbd5e1",
+              color: "#475569", fontFamily: "'DM Sans', sans-serif"
             }}>
             Tekrar Dene
           </button>
@@ -394,12 +401,12 @@ function ArticlePanel({ journal, onClose }) {
             return (
               <div key={art.pmid || i} style={{
                 padding: "12px 14px", borderRadius: "10px",
-                background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.05)",
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
                 transition: "border-color 0.2s"
               }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = `${journal.color}40`}
-                onMouseLeave={e => e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)"}
+                onMouseEnter={e => e.currentTarget.style.borderColor = "#93c5fd"}
+                onMouseLeave={e => e.currentTarget.style.borderColor = "#e2e8f0"}
               >
                 <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
                   <span style={{
@@ -409,12 +416,12 @@ function ArticlePanel({ journal, onClose }) {
                     display: "flex", alignItems: "center", justifyContent: "center"
                   }}>{i + 1}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "13px", fontWeight: 600, color: "#E5E7EB", lineHeight: 1.4, marginBottom: "3px" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a", lineHeight: 1.4, marginBottom: "3px" }}>
                       {art.title}
                     </div>
-                    <div style={{ fontSize: "11px", color: "#9CA3AF", marginBottom: "4px" }}>
+                    <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>
                       {art.authors} · {art.year}
-                      {art.citation && <span style={{ color: "#6B7280" }}> · {art.citation}</span>}
+                      {art.citation && <span style={{ color: "#94a3b8" }}> · {art.citation}</span>}
                     </div>
 
                     {/* Abstract toggle */}
@@ -422,8 +429,8 @@ function ArticlePanel({ journal, onClose }) {
                       <button
                         onClick={e => { e.stopPropagation(); setExpandedAbstract(isAbstractOpen ? null : i); }}
                         style={{
-                          fontSize: "11px", color: isAbstractOpen ? journal.color : "#6B7280",
-                          background: isAbstractOpen ? `${journal.color}10` : "transparent",
+                          fontSize: "11px", color: isAbstractOpen ? "#1e40af" : "#64748b",
+                          background: isAbstractOpen ? "#eff6ff" : "transparent",
                           border: "none", cursor: "pointer", padding: "3px 8px", borderRadius: "4px",
                           marginBottom: "4px", fontFamily: "'DM Sans', sans-serif",
                           transition: "all 0.15s"
@@ -436,9 +443,9 @@ function ArticlePanel({ journal, onClose }) {
                     {/* Abstract content */}
                     {isAbstractOpen && art.abstract && (
                       <div style={{
-                        fontSize: "12px", color: "#D1D5DB", lineHeight: 1.7,
+                        fontSize: "12px", color: "#334155", lineHeight: 1.7,
                         padding: "10px 12px", borderRadius: "8px",
-                        background: "rgba(0,0,0,0.2)", border: `1px solid ${journal.color}15`,
+                        background: "#f1f5f9", border: "1px solid #e2e8f0",
                         marginBottom: "6px", whiteSpace: "pre-wrap"
                       }}>
                         {art.abstract}
@@ -446,7 +453,7 @@ function ArticlePanel({ journal, onClose }) {
                     )}
 
                     {!art.abstract && (
-                      <div style={{ fontSize: "11px", color: "#4B5563", fontStyle: "italic", marginBottom: "4px" }}>
+                      <div style={{ fontSize: "11px", color: "#94a3b8", fontStyle: "italic", marginBottom: "4px" }}>
                         Abstract mevcut değil
                       </div>
                     )}
@@ -459,13 +466,13 @@ function ArticlePanel({ journal, onClose }) {
                           onClick={e => e.stopPropagation()}
                           style={{
                             display: "inline-block", fontSize: "11px",
-                            color: "#6B7280", textDecoration: "none",
+                            color: "#64748b", textDecoration: "none",
                             padding: "3px 10px", borderRadius: "4px",
-                            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+                            background: "#f8fafc", border: "1px solid #e2e8f0",
                             transition: "color 0.15s"
                           }}
-                          onMouseEnter={e => e.currentTarget.style.color = journal.color}
-                          onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
+                          onMouseEnter={e => e.currentTarget.style.color = "#1e40af"}
+                          onMouseLeave={e => e.currentTarget.style.color = "#64748b"}
                         >
                           DOI →
                         </a>
@@ -476,9 +483,9 @@ function ArticlePanel({ journal, onClose }) {
                           onClick={e => e.stopPropagation()}
                           style={{
                             display: "inline-block", fontSize: "11px",
-                            color: "#6B7280", textDecoration: "none",
+                            color: "#64748b", textDecoration: "none",
                             padding: "3px 10px", borderRadius: "4px",
-                            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+                            background: "#f8fafc", border: "1px solid #e2e8f0",
                             transition: "color 0.15s"
                           }}
                           onMouseEnter={e => e.currentTarget.style.color = "#2DD4BF"}
@@ -536,31 +543,31 @@ export default function GenetikDergiTakip() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(165deg, #0a0e1a 0%, #101828 40%, #0d1520 100%)",
-      color: "#e8e6e3", fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
+      background: "linear-gradient(165deg, #f8fafc 0%, #e2e8f0 40%, #f1f5f9 100%)",
+      color: "#1e293b", fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
       padding: 0, position: "relative", overflow: "hidden"
     }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
 
-      <div style={{ position: "fixed", top: "-200px", right: "-200px", width: "600px", height: "600px", background: "radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
-      <div style={{ position: "fixed", bottom: "-300px", left: "-100px", width: "500px", height: "500px", background: "radial-gradient(circle, rgba(139,92,246,0.06) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "fixed", top: "-200px", right: "-200px", width: "600px", height: "600px", background: "radial-gradient(circle, rgba(30,58,138,0.06) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
+      <div style={{ position: "fixed", bottom: "-300px", left: "-100px", width: "500px", height: "500px", background: "radial-gradient(circle, rgba(30,58,138,0.04) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
 
       {/* Header */}
-      <div style={{ padding: "40px 32px 24px", position: "relative", zIndex: 1, borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+      <div style={{ padding: "40px 32px 24px", position: "relative", zIndex: 1, borderBottom: "1px solid rgba(30,58,138,0.1)", background: "linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%)" }}>
         <div style={{ maxWidth: "960px", margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: "12px", marginBottom: "6px" }}>
-            <span style={{ fontSize: "11px", letterSpacing: "4px", textTransform: "uppercase", color: "#6B7280", fontWeight: 500 }}>Tıbbi Genetik</span>
-            <span style={{ width: "40px", height: "1px", background: "linear-gradient(90deg, #6B7280, transparent)", display: "inline-block", verticalAlign: "middle" }} />
+            <span style={{ fontSize: "11px", letterSpacing: "4px", textTransform: "uppercase", color: "rgba(255,255,255,0.6)", fontWeight: 500 }}>Tıbbi Genetik</span>
+            <span style={{ width: "40px", height: "1px", background: "linear-gradient(90deg, rgba(255,255,255,0.4), transparent)", display: "inline-block", verticalAlign: "middle" }} />
           </div>
           <h1 style={{
             fontFamily: "'Instrument Serif', Georgia, serif", fontSize: "clamp(32px, 5vw, 48px)",
-            fontWeight: 400, fontStyle: "italic", color: "#F9FAFB", margin: "8px 0 12px", lineHeight: 1.1, letterSpacing: "-0.5px"
+            fontWeight: 400, fontStyle: "italic", color: "#ffffff", margin: "8px 0 12px", lineHeight: 1.1, letterSpacing: "-0.5px"
           }}>
             Dergi Takip Rehberi
           </h1>
-          <p style={{ color: "#9CA3AF", fontSize: "14px", maxWidth: "560px", lineHeight: 1.6, margin: 0 }}>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", maxWidth: "560px", lineHeight: 1.6, margin: 0 }}>
             {journals.length} dergi, Q1–Q4 quartile ve araştırma alanına göre filtrele. Kartı açıp{" "}
-            <strong style={{ color: "#C4B5FD" }}>Makaleleri Keşfet</strong> ile PubMed'den güncel makalelere eriş.
+            <strong style={{ color: "#93c5fd" }}>Makaleleri Keşfet</strong> ile PubMed'den güncel makalelere eriş.
           </p>
         </div>
       </div>
@@ -569,22 +576,22 @@ export default function GenetikDergiTakip() {
 
         {/* Research Field Selector */}
         <div style={{ marginBottom: "16px" }}>
-          <div style={{ fontSize: "11px", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: "8px", fontWeight: 500 }}>Araştırma Alanı</div>
+          <div style={{ fontSize: "11px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: "8px", fontWeight: 500 }}>Araştırma Alanı</div>
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
             <button onClick={() => setSelectedField(null)} style={{
               padding: "6px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 500,
-              border: "1px solid", borderColor: !selectedField ? "rgba(139,92,246,0.5)" : "rgba(255,255,255,0.08)",
-              background: !selectedField ? "rgba(139,92,246,0.12)" : "rgba(255,255,255,0.02)",
-              color: !selectedField ? "#C4B5FD" : "#9CA3AF", cursor: "pointer", transition: "all 0.15s ease"
+              border: "1px solid", borderColor: !selectedField ? "#1e40af" : "#cbd5e1",
+              background: !selectedField ? "#1e40af" : "#ffffff",
+              color: !selectedField ? "#ffffff" : "#475569", cursor: "pointer", transition: "all 0.15s ease"
             }}>Tümü</button>
             {researchFields.map(field => {
               const count = journals.filter(j => j.field === field).length;
               return (
                 <button key={field} onClick={() => setSelectedField(selectedField === field ? null : field)} style={{
                   padding: "6px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 500,
-                  border: "1px solid", borderColor: selectedField === field ? "rgba(139,92,246,0.5)" : "rgba(255,255,255,0.08)",
-                  background: selectedField === field ? "rgba(139,92,246,0.12)" : "rgba(255,255,255,0.02)",
-                  color: selectedField === field ? "#C4B5FD" : "#9CA3AF", cursor: "pointer", transition: "all 0.15s ease"
+                  border: "1px solid", borderColor: selectedField === field ? "#1e40af" : "#cbd5e1",
+                  background: selectedField === field ? "#1e40af" : "#ffffff",
+                  color: selectedField === field ? "#ffffff" : "#475569", cursor: "pointer", transition: "all 0.15s ease"
                 }}>
                   {field} <span style={{ opacity: 0.5, fontSize: "10px" }}>({count})</span>
                 </button>
@@ -601,9 +608,9 @@ export default function GenetikDergiTakip() {
               return (
                 <button key={key} onClick={() => toggleQuartile(key)} style={{
                   padding: "7px 16px", borderRadius: "999px", border: "1px solid",
-                  borderColor: isSelected ? val.bg : "rgba(255,255,255,0.08)",
-                  background: isSelected ? `${val.bg}20` : "rgba(255,255,255,0.02)",
-                  color: isSelected ? val.bg : "#9CA3AF",
+                  borderColor: isSelected ? val.bg : "#cbd5e1",
+                  background: isSelected ? `${val.bg}18` : "#ffffff",
+                  color: isSelected ? val.bg : "#64748b",
                   fontSize: "13px", fontWeight: 600, cursor: "pointer", transition: "all 0.2s ease",
                   display: "flex", alignItems: "center", gap: "6px"
                 }}>
@@ -614,17 +621,17 @@ export default function GenetikDergiTakip() {
               );
             })}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 14px", borderRadius: "10px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-            <span style={{ fontSize: "11px", color: "#6B7280", whiteSpace: "nowrap" }}>IF:</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 14px", borderRadius: "10px", background: "#ffffff", border: "1px solid #cbd5e1" }}>
+            <span style={{ fontSize: "11px", color: "#64748b", whiteSpace: "nowrap" }}>IF:</span>
             <input type="range" min="0" max="50" step="0.5" value={ifRange[0]}
               onChange={e => setIfRange([Math.min(parseFloat(e.target.value), ifRange[1]), ifRange[1]])}
-              style={{ width: "80px", accentColor: "#8B5CF6" }} />
-            <span style={{ fontSize: "12px", color: "#D1D5DB", fontVariantNumeric: "tabular-nums", minWidth: "60px", textAlign: "center" }}>
+              style={{ width: "80px", accentColor: "#1e40af" }} />
+            <span style={{ fontSize: "12px", color: "#1e293b", fontVariantNumeric: "tabular-nums", minWidth: "60px", textAlign: "center" }}>
               {ifRange[0]} – {ifRange[1]}
             </span>
             <input type="range" min="0" max="50" step="0.5" value={ifRange[1]}
               onChange={e => setIfRange([ifRange[0], Math.max(parseFloat(e.target.value), ifRange[0])])}
-              style={{ width: "80px", accentColor: "#8B5CF6" }} />
+              style={{ width: "80px", accentColor: "#1e40af" }} />
           </div>
         </div>
 
@@ -632,12 +639,12 @@ export default function GenetikDergiTakip() {
         <div style={{ display: "flex", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
           <input type="text" placeholder="Dergi ara..." value={search} onChange={e => setSearch(e.target.value)} style={{
             flex: "1 1 200px", padding: "10px 16px", borderRadius: "10px",
-            border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)",
-            color: "#e8e6e3", fontSize: "14px", outline: "none", fontFamily: "'DM Sans', sans-serif"
+            border: "1px solid #cbd5e1", background: "#ffffff",
+            color: "#1e293b", fontSize: "14px", outline: "none", fontFamily: "'DM Sans', sans-serif"
           }} />
           <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{
-            padding: "10px 16px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)",
-            background: "rgba(15,20,35,0.9)", color: "#9CA3AF", fontSize: "13px", cursor: "pointer",
+            padding: "10px 16px", borderRadius: "10px", border: "1px solid #cbd5e1",
+            background: "#ffffff", color: "#475569", fontSize: "13px", cursor: "pointer",
             fontFamily: "'DM Sans', sans-serif"
           }}>
             <option value="quartile">Quartile'a göre</option>
@@ -651,15 +658,15 @@ export default function GenetikDergiTakip() {
           {allTags.map(tag => (
             <button key={tag} onClick={() => toggleTag(tag)} style={{
               padding: "4px 12px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, textTransform: "capitalize",
-              border: "1px solid", borderColor: selectedTags.includes(tag) ? "rgba(139,92,246,0.5)" : "rgba(255,255,255,0.06)",
-              background: selectedTags.includes(tag) ? "rgba(139,92,246,0.12)" : "transparent",
-              color: selectedTags.includes(tag) ? "#C4B5FD" : "#6B7280", cursor: "pointer", transition: "all 0.15s ease"
+              border: "1px solid", borderColor: selectedTags.includes(tag) ? "#1e40af" : "#cbd5e1",
+              background: selectedTags.includes(tag) ? "#1e40af" : "transparent",
+              color: selectedTags.includes(tag) ? "#ffffff" : "#64748b", cursor: "pointer", transition: "all 0.15s ease"
             }}>{tag}</button>
           ))}
           {(selectedTags.length > 0 || selectedQuartiles.length > 0 || selectedField) && (
             <button onClick={() => { setSelectedTags([]); setSelectedQuartiles([]); setSelectedField(null); setIfRange([0, 50]); }} style={{
               padding: "4px 12px", borderRadius: "6px", fontSize: "11px",
-              border: "none", background: "rgba(239,68,68,0.1)", color: "#F87171", cursor: "pointer"
+              border: "none", background: "#fee2e2", color: "#dc2626", cursor: "pointer"
             }}>✕ Tümünü Temizle</button>
           )}
         </div>
@@ -667,18 +674,18 @@ export default function GenetikDergiTakip() {
         {bookmarks.length > 0 && (
           <div style={{
             marginBottom: "20px", padding: "10px 16px", borderRadius: "10px",
-            background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)",
-            fontSize: "13px", color: "#FBBF24", display: "flex", alignItems: "center", gap: "8px"
+            background: "#fef3c7", border: "1px solid #fbbf24",
+            fontSize: "13px", color: "#92400e", display: "flex", alignItems: "center", gap: "8px"
           }}>
             <span>★</span>
             <span>{bookmarks.length} dergi işaretlendi</span>
-            <span style={{ color: "#9CA3AF", fontSize: "11px" }}>
+            <span style={{ color: "#78716c", fontSize: "11px" }}>
               — {journals.filter(j => bookmarks.includes(j.id)).map(j => j.abbr).join(", ")}
             </span>
           </div>
         )}
 
-        <div style={{ fontSize: "12px", color: "#6B7280", marginBottom: "14px", letterSpacing: "0.5px" }}>
+        <div style={{ fontSize: "12px", color: "#64748b", marginBottom: "14px", letterSpacing: "0.5px" }}>
           {filtered.length} / {journals.length} dergi gösteriliyor
         </div>
 
@@ -690,8 +697,8 @@ export default function GenetikDergiTakip() {
             const showArticles = articlePanelId === j.id;
             return (
               <div key={j.id} style={{
-                background: "rgba(255,255,255,0.02)", border: "1px solid",
-                borderColor: isExpanded ? `${j.color}40` : "rgba(255,255,255,0.05)",
+                background: "#ffffff", border: "1px solid",
+                borderColor: isExpanded ? j.color : "#e2e8f0",
                 borderRadius: "14px", overflow: "hidden", transition: "all 0.3s ease",
                 opacity: mounted ? 1 : 0, transform: mounted ? "translateY(0)" : "translateY(12px)",
                 transitionDelay: `${idx * 40}ms`, cursor: "pointer"
@@ -708,25 +715,25 @@ export default function GenetikDergiTakip() {
 
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
-                      <span style={{ fontSize: "15px", fontWeight: 600, color: "#F3F4F6" }}>{j.abbr}</span>
-                      <span style={{ fontSize: "12px", color: "#6B7280", fontWeight: 400 }}>{j.name}</span>
+                      <span style={{ fontSize: "15px", fontWeight: 600, color: "#0f172a" }}>{j.abbr}</span>
+                      <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 400 }}>{j.name}</span>
                     </div>
-                    <div style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "2px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                       <span>{j.focus}</span>
-                      <span style={{ fontSize: "10px", padding: "1px 8px", borderRadius: "4px", background: "rgba(139,92,246,0.1)", color: "#A78BFA", border: "1px solid rgba(139,92,246,0.2)" }}>{j.field}</span>
+                      <span style={{ fontSize: "10px", padding: "1px 8px", borderRadius: "4px", background: "#eff6ff", color: "#1e40af", border: "1px solid #bfdbfe" }}>{j.field}</span>
                     </div>
                   </div>
 
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
                     <div style={{ fontSize: "18px", fontWeight: 700, color: j.color, fontVariantNumeric: "tabular-nums" }}>{j.if2024}</div>
-                    <div style={{ fontSize: "10px", color: "#6B7280", letterSpacing: "0.5px" }}>IF 2024</div>
+                    <div style={{ fontSize: "10px", color: "#94a3b8", letterSpacing: "0.5px" }}>IF 2024</div>
                   </div>
 
                   <button onClick={e => { e.stopPropagation(); toggleBookmark(j.id); }} style={{
                     width: "32px", height: "32px", borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    background: isBookmarked ? "rgba(251,191,36,0.1)" : "transparent",
-                    color: isBookmarked ? "#FBBF24" : "#4B5563",
+                    border: "1px solid #e2e8f0",
+                    background: isBookmarked ? "#fef3c7" : "transparent",
+                    color: isBookmarked ? "#d97706" : "#94a3b8",
                     cursor: "pointer", fontSize: "16px",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     transition: "all 0.2s ease", flexShrink: 0
@@ -735,18 +742,18 @@ export default function GenetikDergiTakip() {
 
                 {/* Expanded detail */}
                 {isExpanded && (
-                  <div style={{ padding: "0 20px 20px", borderTop: "1px solid rgba(255,255,255,0.04)", marginTop: "-2px", paddingTop: "16px" }}>
+                  <div style={{ padding: "0 20px 20px", borderTop: "1px solid #e2e8f0", marginTop: "-2px", paddingTop: "16px" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", marginBottom: "14px" }}>
-                      <div style={{ background: "rgba(255,255,255,0.02)", padding: "10px 14px", borderRadius: "8px" }}>
-                        <div style={{ fontSize: "10px", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>Yayıncı</div>
-                        <div style={{ fontSize: "13px", color: "#D1D5DB" }}>{j.publisher}</div>
+                      <div style={{ background: "#f8fafc", padding: "10px 14px", borderRadius: "8px" }}>
+                        <div style={{ fontSize: "10px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>Yayıncı</div>
+                        <div style={{ fontSize: "13px", color: "#334155" }}>{j.publisher}</div>
                       </div>
-                      <div style={{ background: "rgba(255,255,255,0.02)", padding: "10px 14px", borderRadius: "8px" }}>
-                        <div style={{ fontSize: "10px", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>Yayın Sıklığı</div>
-                        <div style={{ fontSize: "13px", color: "#D1D5DB" }}>{j.frequency}</div>
+                      <div style={{ background: "#f8fafc", padding: "10px 14px", borderRadius: "8px" }}>
+                        <div style={{ fontSize: "10px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>Yayın Sıklığı</div>
+                        <div style={{ fontSize: "13px", color: "#334155" }}>{j.frequency}</div>
                       </div>
-                      <div style={{ background: "rgba(255,255,255,0.02)", padding: "10px 14px", borderRadius: "8px" }}>
-                        <div style={{ fontSize: "10px", color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>Etiketler</div>
+                      <div style={{ background: "#f8fafc", padding: "10px 14px", borderRadius: "8px" }}>
+                        <div style={{ fontSize: "10px", color: "#64748b", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>Etiketler</div>
                         <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
                           {j.tags.map(t => (
                             <span key={t} style={{
@@ -760,8 +767,8 @@ export default function GenetikDergiTakip() {
                     </div>
 
                     <div style={{
-                      padding: "12px 16px", borderRadius: "10px", background: `${j.color}08`,
-                      borderLeft: `3px solid ${j.color}60`, fontSize: "13px", color: "#D1D5DB", lineHeight: 1.6
+                      padding: "12px 16px", borderRadius: "10px", background: "#f1f5f9",
+                      borderLeft: `3px solid ${j.color}`, fontSize: "13px", color: "#334155", lineHeight: 1.6
                     }}>
                       <span style={{ fontWeight: 600, color: j.color, fontSize: "11px", textTransform: "uppercase", letterSpacing: "1px" }}>Strateji Notu</span>
                       <br />{j.note}
@@ -772,21 +779,21 @@ export default function GenetikDergiTakip() {
                       <a href={j.url} target="_blank" rel="noopener noreferrer"
                         onClick={e => e.stopPropagation()}
                         style={{
-                          fontSize: "12px", color: j.color, textDecoration: "none",
+                          fontSize: "12px", color: "#ffffff", textDecoration: "none",
                           display: "inline-flex", alignItems: "center", gap: "6px",
                           padding: "8px 16px", borderRadius: "8px",
-                          background: `${j.color}10`, border: `1px solid ${j.color}25`, transition: "all 0.2s ease"
+                          background: j.color, border: `1px solid ${j.color}`, transition: "all 0.2s ease"
                         }}>
                         Dergiye Git →
                       </a>
                       <button
                         onClick={e => { e.stopPropagation(); setArticlePanelId(showArticles ? null : j.id); }}
                         style={{
-                          fontSize: "12px", color: "#C4B5FD", textDecoration: "none",
+                          fontSize: "12px", color: showArticles ? "#ffffff" : "#1e40af", textDecoration: "none",
                           display: "inline-flex", alignItems: "center", gap: "6px",
                           padding: "8px 16px", borderRadius: "8px", cursor: "pointer",
-                          background: showArticles ? "rgba(139,92,246,0.15)" : "rgba(139,92,246,0.08)",
-                          border: showArticles ? "1px solid rgba(139,92,246,0.4)" : "1px solid rgba(139,92,246,0.15)",
+                          background: showArticles ? "#1e40af" : "#eff6ff",
+                          border: showArticles ? "1px solid #1e40af" : "1px solid #bfdbfe",
                           transition: "all 0.2s ease", fontFamily: "'DM Sans', sans-serif"
                         }}>
                         📄 {showArticles ? "Makaleleri Gizle" : "Makaleleri Keşfet"}
@@ -808,8 +815,8 @@ export default function GenetikDergiTakip() {
         )}
 
         <div style={{
-          marginTop: "48px", paddingTop: "24px", borderTop: "1px solid rgba(255,255,255,0.04)",
-          fontSize: "11px", color: "#4B5563", textAlign: "center", lineHeight: 1.8
+          marginTop: "48px", paddingTop: "24px", borderTop: "1px solid #e2e8f0",
+          fontSize: "11px", color: "#94a3b8", textAlign: "center", lineHeight: 1.8
         }}>
           IF değerleri 2024 JCR verilerine, quartile bilgileri Genetics &amp; Heredity kategorisine dayanmaktadır. Makale verileri PubMed ve CrossRef API'lerinden gerçek zamanlı olarak çekilmektedir.
           <br />Tıbbi Genetik Dergi Takip Rehberi — {journals.length} dergi
