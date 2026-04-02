@@ -117,9 +117,9 @@ function getDateRange(period) {
   return { mindate: `${y - 10}/01/01`, maxdate: `${y}/12/31` };
 }
 
-async function pubmedSearch(journalQuery, mindate, maxdate, sort) {
+async function pubmedSearch(journalQuery, mindate, maxdate, sort, retmax = 100) {
   try {
-    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(journalQuery)}&datetype=pdat&mindate=${mindate}&maxdate=${maxdate}&retmax=5&sort=${sort}&retmode=json`;
+    const searchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(journalQuery)}&datetype=pdat&mindate=${mindate}&maxdate=${maxdate}&retmax=${retmax}&sort=${sort}&retmode=json`;
     const searchRes = await fetch(searchUrl);
     if (!searchRes.ok) return [];
     const searchData = await searchRes.json();
@@ -127,6 +127,72 @@ async function pubmedSearch(journalQuery, mindate, maxdate, sort) {
   } catch {
     return [];
   }
+}
+
+function parseArticlesFromXml(xmlText, expectedSource) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, "text/xml");
+  const articleNodes = doc.querySelectorAll("PubmedArticle");
+  const articles = [];
+
+  for (const node of articleNodes) {
+    const medline = node.querySelector("MedlineCitation");
+    const article = medline?.querySelector("Article");
+    if (!article) continue;
+
+    const source = medline?.querySelector("MedlineJournalInfo ISSNLinking")?.textContent ||
+                   article?.querySelector("Journal Title")?.textContent || "";
+    const journalAbbr = medline?.querySelector("MedlineJournalInfo MedlineTA")?.textContent || "";
+
+    // Verify journal match
+    if (expectedSource && journalAbbr && journalAbbr.toLowerCase() !== expectedSource.toLowerCase()) continue;
+
+    const pmid = medline?.querySelector("PMID")?.textContent || "";
+    const title = article?.querySelector("ArticleTitle")?.textContent || "Başlık yok";
+
+    // Get abstract
+    const abstractParts = article?.querySelectorAll("Abstract AbstractText") || [];
+    let abstract = "";
+    for (const part of abstractParts) {
+      const label = part.getAttribute("Label");
+      if (label) abstract += `**${label}**: `;
+      abstract += part.textContent + "\n\n";
+    }
+    abstract = abstract.trim();
+
+    // Get authors
+    const authorNodes = article?.querySelectorAll("AuthorList Author") || [];
+    const authorNames = [];
+    for (const auth of authorNodes) {
+      const last = auth.querySelector("LastName")?.textContent || "";
+      const initials = auth.querySelector("Initials")?.textContent || "";
+      if (last) authorNames.push(`${last} ${initials}`.trim());
+    }
+    const authors = authorNames.length > 3
+      ? `${authorNames[0]} et al.`
+      : authorNames.length > 0 ? authorNames.join(", ") : "Bilinmiyor";
+
+    // Get year
+    const pubDateYear = article?.querySelector("Journal JournalIssue PubDate Year")?.textContent ||
+                        medline?.querySelector("DateCompleted Year")?.textContent || "";
+    const year = pubDateYear ? parseInt(pubDateYear) : new Date().getFullYear();
+
+    // Get DOI
+    const idNodes = node.querySelectorAll("PubmedData ArticleIdList ArticleId");
+    let doi = "";
+    for (const idNode of idNodes) {
+      if (idNode.getAttribute("IdType") === "doi") { doi = idNode.textContent; break; }
+    }
+
+    // Get volume/issue/pages
+    const volume = article?.querySelector("Journal JournalIssue Volume")?.textContent || "";
+    const issue = article?.querySelector("Journal JournalIssue Issue")?.textContent || "";
+    const pages = article?.querySelector("Pagination MedlinePgn")?.textContent || "";
+    const citation = [volume && `Vol. ${volume}`, issue && `(${issue})`, pages && `pp. ${pages}`].filter(Boolean).join(" ");
+
+    articles.push({ title, authors, year, abstract, doi, pmid, citation, journalAbbr });
+  }
+  return articles;
 }
 
 async function fetchFromPubMed(journalName, period) {
@@ -148,35 +214,17 @@ async function fetchFromPubMed(journalName, period) {
 
   if (ids.length === 0) return null;
 
-  const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(",")}&retmode=json`;
-  const fetchRes = await fetch(fetchUrl);
-  if (!fetchRes.ok) return null;
-  const fetchData = await fetchRes.json();
-
-  const expectedSource = ta || "";
-  const articles = [];
-  for (const id of ids) {
-    const rec = fetchData?.result?.[id];
-    if (!rec) continue;
-    // Verify the article actually belongs to this journal
-    if (expectedSource && rec.source && rec.source.toLowerCase() !== expectedSource.toLowerCase()) continue;
-    const doi = (rec.articleids || []).find(a => a.idtype === "doi")?.value || "";
-    const authors = rec.authors?.length > 0
-      ? (rec.authors.length > 2 ? `${rec.authors[0].name} et al.` : rec.authors.map(a => a.name).join(", "))
-      : "Bilinmiyor";
-    const year = rec.pubdate ? parseInt(rec.pubdate) : new Date().getFullYear();
-    articles.push({
-      title: rec.title || "Başlık yok",
-      authors,
-      year: isNaN(year) ? rec.pubdate : year,
-      summary: rec.title,
-      doi,
-      pmid: id,
-      why: `${rec.source || journalName} — PMID: ${id}`,
-    });
-    if (articles.length >= 3) break;
+  // Use efetch XML to get full article data including abstracts
+  const fetchUrl = `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${ids.join(",")}&retmode=xml`;
+  try {
+    const fetchRes = await fetch(fetchUrl);
+    if (!fetchRes.ok) return null;
+    const xmlText = await fetchRes.text();
+    const articles = parseArticlesFromXml(xmlText, ta);
+    return articles.length > 0 ? articles : null;
+  } catch {
+    return null;
   }
-  return articles.length > 0 ? articles : null;
 }
 
 async function fetchFromCrossRef(journalName, period) {
@@ -198,7 +246,7 @@ async function fetchFromCrossRef(journalName, period) {
   const sort = period === "alltime" ? "is-referenced-by-count" : "published";
   const order = "desc";
 
-  const url = `https://api.crossref.org/works?filter=issn:${issn},from-pub-date:${fromDate},until-pub-date:${untilDate}&sort=${sort}&order=${order}&rows=3&select=title,author,published-print,published-online,DOI,container-title`;
+  const url = `https://api.crossref.org/works?filter=issn:${issn},from-pub-date:${fromDate},until-pub-date:${untilDate}&sort=${sort}&order=${order}&rows=50&select=title,author,published-print,published-online,DOI,container-title`;
 
   const res = await fetch(url, {
     headers: { "User-Agent": "GenetikDergiTakip/1.0 (mailto:research@example.com)" }
@@ -248,6 +296,7 @@ function ArticlePanel({ journal, onClose }) {
   const [articles, setArticles] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [expandedAbstract, setExpandedAbstract] = useState(null);
   const cacheRef = React.useRef({});
 
   const doFetch = useCallback(async (p) => {
@@ -282,7 +331,8 @@ function ArticlePanel({ journal, onClose }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
         <div style={{ fontSize: "13px", fontWeight: 600, color: "#F3F4F6", display: "flex", alignItems: "center", gap: "8px" }}>
           <span style={{ fontSize: "16px" }}>📄</span>
-          Öne Çıkan Makaleler — <span style={{ color: journal.color }}>{journal.abbr}</span>
+          Makaleler — <span style={{ color: journal.color }}>{journal.abbr}</span>
+          {currentArticles.length > 0 && <span style={{ fontSize: "11px", color: "#6B7280", fontWeight: 400 }}> ({currentArticles.length} makale)</span>}
         </div>
         <button onClick={onClose} style={{
           background: "rgba(255,255,255,0.06)", border: "none", color: "#9CA3AF",
@@ -338,81 +388,111 @@ function ArticlePanel({ journal, onClose }) {
 
       {/* Articles */}
       {!loading && currentArticles.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {currentArticles.map((art, i) => (
-            <div key={i} style={{
-              padding: "14px 16px", borderRadius: "10px",
-              background: "rgba(255,255,255,0.02)",
-              border: "1px solid rgba(255,255,255,0.05)",
-              transition: "border-color 0.2s"
-            }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = `${journal.color}40`}
-              onMouseLeave={e => e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)"}
-            >
-              <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                <span style={{
-                  width: "22px", height: "22px", borderRadius: "6px", flexShrink: 0,
-                  background: `${journal.color}20`, color: journal.color,
-                  fontSize: "11px", fontWeight: 700,
-                  display: "flex", alignItems: "center", justifyContent: "center"
-                }}>{i + 1}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#E5E7EB", lineHeight: 1.4, marginBottom: "4px" }}>
-                    {art.title}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "#9CA3AF", marginBottom: "6px" }}>
-                    {art.authors} · {art.year}
-                  </div>
-                  <div style={{ fontSize: "12px", color: "#D1D5DB", lineHeight: 1.5, marginBottom: "6px" }}>
-                    {art.summary}
-                  </div>
-                  <div style={{
-                    fontSize: "11px", color: journal.color, fontStyle: "italic",
-                    padding: "6px 10px", borderRadius: "6px", background: `${journal.color}08`,
-                    borderLeft: `2px solid ${journal.color}40`
-                  }}>
-                    💡 {art.why}
-                  </div>
-                  <div style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
-                    {art.doi && (
-                      <a href={art.doi.startsWith("http") ? art.doi : `https://doi.org/${art.doi}`}
-                        target="_blank" rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "70vh", overflowY: "auto", paddingRight: "4px" }}>
+          {currentArticles.map((art, i) => {
+            const isAbstractOpen = expandedAbstract === i;
+            return (
+              <div key={art.pmid || i} style={{
+                padding: "12px 14px", borderRadius: "10px",
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid rgba(255,255,255,0.05)",
+                transition: "border-color 0.2s"
+              }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = `${journal.color}40`}
+                onMouseLeave={e => e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)"}
+              >
+                <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                  <span style={{
+                    width: "22px", height: "22px", borderRadius: "6px", flexShrink: 0,
+                    background: `${journal.color}20`, color: journal.color,
+                    fontSize: "10px", fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center"
+                  }}>{i + 1}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "13px", fontWeight: 600, color: "#E5E7EB", lineHeight: 1.4, marginBottom: "3px" }}>
+                      {art.title}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#9CA3AF", marginBottom: "4px" }}>
+                      {art.authors} · {art.year}
+                      {art.citation && <span style={{ color: "#6B7280" }}> · {art.citation}</span>}
+                    </div>
+
+                    {/* Abstract toggle */}
+                    {art.abstract && (
+                      <button
+                        onClick={e => { e.stopPropagation(); setExpandedAbstract(isAbstractOpen ? null : i); }}
                         style={{
-                          display: "inline-block", fontSize: "11px",
-                          color: "#6B7280", textDecoration: "none",
-                          padding: "3px 10px", borderRadius: "4px",
-                          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
-                          transition: "color 0.15s"
+                          fontSize: "11px", color: isAbstractOpen ? journal.color : "#6B7280",
+                          background: isAbstractOpen ? `${journal.color}10` : "transparent",
+                          border: "none", cursor: "pointer", padding: "3px 8px", borderRadius: "4px",
+                          marginBottom: "4px", fontFamily: "'DM Sans', sans-serif",
+                          transition: "all 0.15s"
                         }}
-                        onMouseEnter={e => e.currentTarget.style.color = journal.color}
-                        onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
                       >
-                        DOI →
-                      </a>
+                        {isAbstractOpen ? "▾ Abstract'ı Gizle" : "▸ Abstract'ı Göster"}
+                      </button>
                     )}
-                    {art.pmid && (
-                      <a href={`https://pubmed.ncbi.nlm.nih.gov/${art.pmid}/`}
-                        target="_blank" rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        style={{
-                          display: "inline-block", fontSize: "11px",
-                          color: "#6B7280", textDecoration: "none",
-                          padding: "3px 10px", borderRadius: "4px",
-                          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
-                          transition: "color 0.15s"
-                        }}
-                        onMouseEnter={e => e.currentTarget.style.color = "#2DD4BF"}
-                        onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
-                      >
-                        PubMed →
-                      </a>
+
+                    {/* Abstract content */}
+                    {isAbstractOpen && art.abstract && (
+                      <div style={{
+                        fontSize: "12px", color: "#D1D5DB", lineHeight: 1.7,
+                        padding: "10px 12px", borderRadius: "8px",
+                        background: "rgba(0,0,0,0.2)", border: `1px solid ${journal.color}15`,
+                        marginBottom: "6px", whiteSpace: "pre-wrap"
+                      }}>
+                        {art.abstract}
+                      </div>
                     )}
+
+                    {!art.abstract && (
+                      <div style={{ fontSize: "11px", color: "#4B5563", fontStyle: "italic", marginBottom: "4px" }}>
+                        Abstract mevcut değil
+                      </div>
+                    )}
+
+                    {/* Links */}
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                      {art.doi && (
+                        <a href={art.doi.startsWith("http") ? art.doi : `https://doi.org/${art.doi}`}
+                          target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          style={{
+                            display: "inline-block", fontSize: "11px",
+                            color: "#6B7280", textDecoration: "none",
+                            padding: "3px 10px", borderRadius: "4px",
+                            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+                            transition: "color 0.15s"
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.color = journal.color}
+                          onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
+                        >
+                          DOI →
+                        </a>
+                      )}
+                      {art.pmid && (
+                        <a href={`https://pubmed.ncbi.nlm.nih.gov/${art.pmid}/`}
+                          target="_blank" rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          style={{
+                            display: "inline-block", fontSize: "11px",
+                            color: "#6B7280", textDecoration: "none",
+                            padding: "3px 10px", borderRadius: "4px",
+                            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)",
+                            transition: "color 0.15s"
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.color = "#2DD4BF"}
+                          onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
+                        >
+                          PubMed →
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
