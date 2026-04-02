@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 // ──────────────────────────────────────────────
 // JOURNAL DATA
 // ──────────────────────────────────────────────
-const journals = [
+const DEFAULT_JOURNALS = [
   // === Q1 — IF > 6 ===
   { id: 1, name: "Nature Genetics", abbr: "Nat Genet", if2024: 31.7, quartile: "Q1", frequency: "Aylık", focus: "Genetik ve genomik — temel ve translasyonel", url: "https://www.nature.com/ng/", field: "Genomik", tags: ["temel", "genomik", "translasyonel"], color: "#C1121F", publisher: "Nature Portfolio", note: "En yüksek IF'li genetik dergisi. GWAS, fonksiyonel genomik ve yeni gen keşifleri.", openAccess: false },
   { id: 2, name: "Nature Reviews Genetics", abbr: "Nat Rev Genet", if2024: 39.1, quartile: "Q1", frequency: "Aylık", focus: "Genetik ve genomik alanında kapsamlı derleme makaleleri", url: "https://www.nature.com/nrg/", field: "Genomik", tags: ["temel", "genomik", "derleme"], color: "#9B1B30", publisher: "Nature Portfolio", note: "Alanın en prestijli review dergisi. Yeni kavram ve teknolojilerin kapsamlı değerlendirmesi.", openAccess: false },
@@ -793,7 +793,7 @@ function ArticlePanel({ journal, onClose, readingList, setReadingList }) {
 // ──────────────────────────────────────────────
 // WIZARD COMPONENT
 // ──────────────────────────────────────────────
-function JournalWizard() {
+function JournalWizard({ journals }) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({});
   const [showResults, setShowResults] = useState(false);
@@ -1036,6 +1036,156 @@ function ReadingListPanel({ readingList, setReadingList }) {
 }
 
 // ──────────────────────────────────────────────
+// ADD JOURNAL FORM
+// ──────────────────────────────────────────────
+function AddJournalForm({ onAdd, onClose, existingNames }) {
+  const [form, setForm] = useState({
+    name: "", abbr: "", if2024: "", quartile: "Q2", frequency: "Aylık",
+    focus: "", url: "", field: "Klinik Genetik", tags: [],
+    publisher: "", note: "", openAccess: false
+  });
+  const [error, setError] = useState("");
+
+  const set = (key, val) => setForm(prev => ({ ...prev, [key]: val }));
+
+  const toggleFormTag = (tag) => setForm(prev => ({
+    ...prev, tags: prev.tags.includes(tag) ? prev.tags.filter(t => t !== tag) : [...prev.tags, tag]
+  }));
+
+  const handleSubmit = () => {
+    if (!form.name.trim()) { setError("Dergi adı gerekli."); return; }
+    if (existingNames.some(n => n.toLowerCase() === form.name.trim().toLowerCase())) { setError("Bu dergi zaten mevcut."); return; }
+    if (!form.abbr.trim()) { setError("Kısaltma gerekli."); return; }
+    const ifVal = parseFloat(form.if2024);
+    if (isNaN(ifVal) || ifVal < 0) { setError("Geçerli bir IF değeri girin."); return; }
+    onAdd({
+      ...form,
+      name: form.name.trim(),
+      abbr: form.abbr.trim(),
+      if2024: ifVal,
+      focus: form.focus.trim(),
+      url: form.url.trim(),
+      publisher: form.publisher.trim(),
+      note: form.note.trim(),
+      id: `custom_${Date.now()}`,
+      color: ["#C1121F", "#0077B6", "#2D6A4F", "#5B2C6F", "#E63946", "#1B4965", "#D35400", "#7D3C98", "#2A9D8F", "#6A040F"][Math.floor(Math.random() * 10)],
+      isCustom: true,
+    });
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "10px 14px", borderRadius: "8px",
+    border: "1px solid #cbd5e1", background: "#ffffff",
+    color: "#1e293b", fontSize: "13px", outline: "none",
+    fontFamily: "'DM Sans', sans-serif", boxSizing: "border-box"
+  };
+  const labelStyle = { fontSize: "11px", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px", display: "block" };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: "20px"
+    }} onClick={onClose}>
+      <div style={{
+        background: "#ffffff", borderRadius: "16px", padding: "28px 32px",
+        maxWidth: "560px", width: "100%", maxHeight: "85vh", overflowY: "auto",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.2)"
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+          <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#0f172a", margin: 0 }}>➕ Yeni Dergi Ekle</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#94a3b8" }}>✕</button>
+        </div>
+
+        {error && <div style={{ padding: "10px 14px", borderRadius: "8px", background: "#fee2e2", color: "#dc2626", fontSize: "12px", marginBottom: "14px" }}>{error}</div>}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Dergi Adı *</label>
+            <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Nature Genetics" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Kısaltma *</label>
+            <input value={form.abbr} onChange={e => set("abbr", e.target.value)} placeholder="Nat Genet" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Impact Factor *</label>
+            <input value={form.if2024} onChange={e => set("if2024", e.target.value)} placeholder="6.5" type="number" step="0.1" min="0" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Quartile</label>
+            <select value={form.quartile} onChange={e => set("quartile", e.target.value)} style={inputStyle}>
+              {["Q1", "Q2", "Q3", "Q4"].map(q => <option key={q} value={q}>{q} — {quartileInfo[q].desc}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Alan</label>
+            <select value={form.field} onChange={e => set("field", e.target.value)} style={inputStyle}>
+              {researchFields.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Odak / Kapsam</label>
+            <input value={form.focus} onChange={e => set("focus", e.target.value)} placeholder="Klinik genetik, moleküler tanı..." style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Yayıncı</label>
+            <input value={form.publisher} onChange={e => set("publisher", e.target.value)} placeholder="Elsevier" style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Yayın Sıklığı</label>
+            <select value={form.frequency} onChange={e => set("frequency", e.target.value)} style={inputStyle}>
+              {["Haftalık", "2 haftada bir", "Aylık", "2 ayda bir", "Sürekli"].map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>URL</label>
+            <input value={form.url} onChange={e => set("url", e.target.value)} placeholder="https://..." style={inputStyle} />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Strateji Notu</label>
+            <textarea value={form.note} onChange={e => set("note", e.target.value)} placeholder="Bu dergi hakkında notunuz..."
+              style={{ ...inputStyle, minHeight: "60px", resize: "vertical" }} />
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={labelStyle}>Etiketler</label>
+            <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+              {allTags.map(tag => (
+                <button key={tag} onClick={() => toggleFormTag(tag)} style={{
+                  padding: "3px 10px", borderRadius: "6px", fontSize: "11px",
+                  border: "1px solid", borderColor: form.tags.includes(tag) ? "#1e40af" : "#cbd5e1",
+                  background: form.tags.includes(tag) ? "#1e40af" : "#ffffff",
+                  color: form.tags.includes(tag) ? "#ffffff" : "#64748b",
+                  cursor: "pointer", textTransform: "capitalize"
+                }}>{tag}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+              <input type="checkbox" checked={form.openAccess} onChange={e => set("openAccess", e.target.checked)} />
+              <span style={{ fontSize: "13px", color: "#334155" }}>Açık Erişim (Open Access)</span>
+            </label>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "16px" }}>
+          <button onClick={onClose} style={{
+            padding: "10px 20px", borderRadius: "8px", border: "1px solid #cbd5e1",
+            background: "#ffffff", color: "#64748b", fontSize: "13px", cursor: "pointer",
+            fontFamily: "'DM Sans', sans-serif"
+          }}>İptal</button>
+          <button onClick={handleSubmit} style={{
+            padding: "10px 20px", borderRadius: "8px", border: "none",
+            background: "#1e40af", color: "#ffffff", fontSize: "13px", cursor: "pointer",
+            fontWeight: 600, fontFamily: "'DM Sans', sans-serif"
+          }}>Dergi Ekle</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
 // MAIN COMPONENT
 // ──────────────────────────────────────────────
 export default function GenetikDergiTakip() {
@@ -1052,10 +1202,24 @@ export default function GenetikDergiTakip() {
   const [ifRange, setIfRange] = useState([0, 50]);
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("discover");
+  const [showAddJournal, setShowAddJournal] = useState(false);
 
   const [readingList, setReadingList] = useState(() => {
     try { return JSON.parse(localStorage.getItem("genetik_reading_list") || "{}"); } catch { return {}; }
   });
+
+  const [customJournals, setCustomJournals] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("genetik_custom_journals") || "[]"); } catch { return []; }
+  });
+
+  const [removedJournalIds, setRemovedJournalIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("genetik_removed_journals") || "[]"); } catch { return []; }
+  });
+
+  const journals = useMemo(() => {
+    const kept = DEFAULT_JOURNALS.filter(j => !removedJournalIds.includes(j.id));
+    return [...kept, ...customJournals];
+  }, [customJournals, removedJournalIds]);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -1066,6 +1230,34 @@ export default function GenetikDergiTakip() {
   useEffect(() => {
     localStorage.setItem("genetik_reading_list", JSON.stringify(readingList));
   }, [readingList]);
+
+  useEffect(() => {
+    localStorage.setItem("genetik_custom_journals", JSON.stringify(customJournals));
+  }, [customJournals]);
+
+  useEffect(() => {
+    localStorage.setItem("genetik_removed_journals", JSON.stringify(removedJournalIds));
+  }, [removedJournalIds]);
+
+  const addJournal = (journal) => {
+    setCustomJournals(prev => [...prev, journal]);
+    setShowAddJournal(false);
+  };
+
+  const removeJournal = (id) => {
+    if (typeof id === "string" && id.startsWith("custom_")) {
+      setCustomJournals(prev => prev.filter(j => j.id !== id));
+    } else {
+      setRemovedJournalIds(prev => [...prev, id]);
+    }
+    setBookmarks(prev => prev.filter(b => b !== id));
+    if (expandedId === id) setExpandedId(null);
+    if (articlePanelId === id) setArticlePanelId(null);
+  };
+
+  const restoreJournal = (id) => {
+    setRemovedJournalIds(prev => prev.filter(rid => rid !== id));
+  };
 
   const toggleQuartile = (q) => setSelectedQuartiles(prev => prev.includes(q) ? prev.filter(x => x !== q) : [...prev, q]);
   const toggleTag = (tag) => setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -1217,7 +1409,7 @@ export default function GenetikDergiTakip() {
               </div>
             </div>
 
-            {/* Search + Sort */}
+            {/* Search + Sort + Add */}
             <div style={{ display: "flex", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
               <input type="text" placeholder="Dergi ara..." value={search} onChange={e => setSearch(e.target.value)} style={{
                 flex: "1 1 200px", padding: "10px 16px", borderRadius: "10px",
@@ -1233,6 +1425,14 @@ export default function GenetikDergiTakip() {
                 <option value="if">IF'ye göre</option>
                 <option value="name">İsme göre</option>
               </select>
+              <button onClick={() => setShowAddJournal(true)} style={{
+                padding: "10px 18px", borderRadius: "10px", border: "none",
+                background: "#1e40af", color: "#ffffff", fontSize: "13px",
+                cursor: "pointer", fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+                display: "flex", alignItems: "center", gap: "6px", whiteSpace: "nowrap"
+              }}>
+                ➕ Dergi Ekle
+              </button>
             </div>
 
             {/* Tag filters */}
@@ -1299,6 +1499,7 @@ export default function GenetikDergiTakip() {
                           <span style={{ fontSize: "15px", fontWeight: 600, color: "#0f172a" }}>{j.abbr}</span>
                           <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 400 }}>{j.name}</span>
                           {j.openAccess && <span style={{ fontSize: "9px", padding: "1px 6px", borderRadius: "4px", background: "#dcfce7", color: "#166534", fontWeight: 600 }}>OA</span>}
+                          {j.isCustom && <span style={{ fontSize: "9px", padding: "1px 6px", borderRadius: "4px", background: "#ede9fe", color: "#6d28d9", fontWeight: 600 }}>Özel</span>}
                         </div>
                         <div style={{ fontSize: "12px", color: "#64748b", marginTop: "2px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                           <span>{j.focus}</span>
@@ -1311,15 +1512,29 @@ export default function GenetikDergiTakip() {
                         <div style={{ fontSize: "10px", color: "#94a3b8", letterSpacing: "0.5px" }}>IF 2024</div>
                       </div>
 
-                      <button onClick={e => { e.stopPropagation(); toggleBookmark(j.id); }} style={{
-                        width: "32px", height: "32px", borderRadius: "8px",
-                        border: "1px solid #e2e8f0",
-                        background: isBookmarked ? "#fef3c7" : "transparent",
-                        color: isBookmarked ? "#d97706" : "#94a3b8",
-                        cursor: "pointer", fontSize: "16px",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        transition: "all 0.2s ease", flexShrink: 0
-                      }}>{isBookmarked ? "★" : "☆"}</button>
+                      <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                        <button onClick={e => { e.stopPropagation(); toggleBookmark(j.id); }} style={{
+                          width: "32px", height: "32px", borderRadius: "8px",
+                          border: "1px solid #e2e8f0",
+                          background: isBookmarked ? "#fef3c7" : "transparent",
+                          color: isBookmarked ? "#d97706" : "#94a3b8",
+                          cursor: "pointer", fontSize: "16px",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          transition: "all 0.2s ease"
+                        }}>{isBookmarked ? "★" : "☆"}</button>
+                        <button onClick={e => { e.stopPropagation(); if (window.confirm(`"${j.name}" dergisini listeden kaldırmak istediğinize emin misiniz?`)) removeJournal(j.id); }} style={{
+                          width: "32px", height: "32px", borderRadius: "8px",
+                          border: "1px solid #fecaca",
+                          background: "transparent", color: "#ef4444",
+                          cursor: "pointer", fontSize: "14px",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          transition: "all 0.2s ease", opacity: 0.5
+                        }}
+                          onMouseEnter={e => e.currentTarget.style.opacity = "1"}
+                          onMouseLeave={e => e.currentTarget.style.opacity = "0.5"}
+                          title="Dergiyi kaldır"
+                        >✕</button>
+                      </div>
                     </div>
 
                     {isExpanded && (
@@ -1400,12 +1615,48 @@ export default function GenetikDergiTakip() {
                 Filtrelere uygun dergi bulunamadı. Filtreleri genişletmeyi deneyin.
               </div>
             )}
+
+            {/* Removed journals restore */}
+            {removedJournalIds.length > 0 && (
+              <div style={{
+                marginTop: "24px", padding: "14px 18px", borderRadius: "12px",
+                background: "#fff7ed", border: "1px solid #fed7aa"
+              }}>
+                <div style={{ fontSize: "12px", fontWeight: 600, color: "#9a3412", marginBottom: "8px" }}>
+                  Kaldırılan Dergiler ({removedJournalIds.length})
+                </div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {removedJournalIds.map(id => {
+                    const j = DEFAULT_JOURNALS.find(dj => dj.id === id);
+                    if (!j) return null;
+                    return (
+                      <button key={id} onClick={() => restoreJournal(id)} style={{
+                        padding: "4px 12px", borderRadius: "6px", fontSize: "11px",
+                        border: "1px solid #fdba74", background: "#ffffff", color: "#9a3412",
+                        cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                        display: "flex", alignItems: "center", gap: "4px"
+                      }}>
+                        ↩ {j.abbr}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {showAddJournal && (
+              <AddJournalForm
+                onAdd={addJournal}
+                onClose={() => setShowAddJournal(false)}
+                existingNames={journals.map(j => j.name)}
+              />
+            )}
           </>
         )}
 
         {/* ═══════ WIZARD TAB ═══════ */}
         {activeTab === "wizard" && (
-          <JournalWizard />
+          <JournalWizard journals={journals} />
         )}
 
         <div style={{
