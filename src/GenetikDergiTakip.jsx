@@ -43,6 +43,8 @@ const DEFAULT_JOURNALS = [
   { id: 33, name: "Molecular Syndromology", abbr: "Mol Syndromol", if2024: 1.4, quartile: "Q4", frequency: "2 ayda bir", focus: "Sendromik hastalıklar, dismorfik fenotip, gelişimsel bozukluklar", url: "https://karger.com/msy", field: "Klinik Genetik", tags: ["klinik", "dismorfik", "vaka"], color: "#95A5A6", publisher: "Karger", note: "Nadir sendromların fenotip-genotip tanımlaması. Vaka raporları için erişilebilir hedef.", openAccess: false },
   { id: 34, name: "Balkan Journal of Medical Genetics", abbr: "Balkan J Med Genet", if2024: 0.8, quartile: "Q4", frequency: "2 yılda bir", focus: "Balkan bölgesi genetik çalışmaları, popülasyon genetiği", url: "https://sciendo.com/journal/BJMG", field: "İnsan Genetiği", tags: ["klinik", "temel", "vaka"], color: "#7F8C8D", publisher: "Sciendo", note: "Bölgesel genetik çalışmalar. Türk araştırmacılar için erişilebilir yayın hedefi.", openAccess: false },
   { id: 35, name: "Journal of Community Genetics", abbr: "J Community Genet", if2024: 1.3, quartile: "Q4", frequency: "Sürekli", focus: "Toplum genetiği, taşıyıcı tarama, halk sağlığı genetiği", url: "https://link.springer.com/journal/12687", field: "Genetik Danışmanlık", tags: ["klinik", "danışmanlık", "halk sağlığı"], color: "#AEB6BF", publisher: "Springer", note: "Toplum tabanlı genetik tarama ve genetik danışmanlık araştırmaları.", openAccess: true },
+  // === Kullanıcı tarafından eklenen ===
+  { id: 36, name: "The Journal of Molecular Diagnostics", abbr: "J Mol Diagn", if2024: 3.4, quartile: "Q2", frequency: "2 ayda bir", focus: "Moleküler tanı, moleküler patoloji, klinik moleküler testler", url: "https://www.sciencedirect.com/journal/the-journal-of-molecular-diagnostics", field: "Genetik Test", tags: ["moleküler", "test", "klinik", "translasyonel"], color: "#8B5CF6", publisher: "Elsevier / AMP", note: "Association for Molecular Pathology'nin resmi dergisi. Moleküler tanı yöntemleri, NGS validasyonu, klinik laboratuvar uygulamaları ve yeni moleküler test geliştirme çalışmaları.", openAccess: false },
 ];
 
 const researchFields = [
@@ -106,6 +108,7 @@ const journalMeta = {
   "Molecular Syndromology": { ta: "Mol Syndromol", issn: "1661-8769" },
   "Balkan Journal of Medical Genetics": { ta: "Balkan J Med Genet", issn: "1311-0160" },
   "Journal of Community Genetics": { ta: "J Community Genet", issn: "1868-310X" },
+  "The Journal of Molecular Diagnostics": { ta: "J Mol Diagn", issn: "1525-1578" },
 };
 
 // ──────────────────────────────────────────────
