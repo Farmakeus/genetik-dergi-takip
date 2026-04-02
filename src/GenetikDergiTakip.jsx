@@ -61,7 +61,7 @@ const quartileInfo = {
   Q3: { label: "Q3", desc: "IF 1.5-3", bg: "#F59E0B", color: "#92400E" },
   Q4: { label: "Q4", desc: "IF < 1.5", bg: "#EF4444", color: "#991B1B" },
 };
-const periodLabels = { month: "Bu Ay", year: "Bu Yıl (2026)", alltime: "Tüm Zamanlar" };
+const periodLabels = { month: "Bu Ay", year: "Bu Yıl (2026)", last3years: "Son 3 Yıl", alltime: "Tüm Zamanlar" };
 
 const READING_STATUSES = {
   okunacak: { label: "Okunacak", icon: "📋", color: "#F59E0B" },
@@ -276,6 +276,11 @@ function getDateRange(period) {
     const y = now.getFullYear();
     return { mindate: `${y}/01/01`, maxdate: `${y}/12/31` };
   }
+  if (period === "last3years") {
+    const y = now.getFullYear();
+    return { mindate: `${y - 3}/01/01`, maxdate: `${y}/12/31` };
+  }
+  // alltime — last 10 years
   const y = now.getFullYear();
   return { mindate: `${y - 10}/01/01`, maxdate: `${y}/12/31` };
 }
@@ -362,7 +367,7 @@ async function fetchFromPubMed(journalName, period) {
   const ta = meta?.ta;
   const { mindate, maxdate } = getDateRange(period);
   const journalQuery = ta ? `"${ta}"[ta]` : `"${journalName}"[Journal]`;
-  const sort = period === "alltime" ? "relevance" : "pub+date";
+  const sort = (period === "alltime" || period === "last3years") ? "relevance" : "pub+date";
 
   let ids = await pubmedSearch(journalQuery, mindate, maxdate, sort);
 
@@ -402,7 +407,7 @@ async function fetchFromCrossRef(journalName, period) {
     fromDate = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, "0")}-01`;
   }
 
-  const sort = period === "alltime" ? "is-referenced-by-count" : "published";
+  const sort = (period === "alltime" || period === "last3years") ? "is-referenced-by-count" : "published";
   const url = `https://api.crossref.org/works?filter=issn:${issn},from-pub-date:${fromDate},until-pub-date:${untilDate}&sort=${sort}&order=desc&rows=50&select=title,author,published-print,published-online,DOI,container-title`;
 
   const res = await fetch(url, {
